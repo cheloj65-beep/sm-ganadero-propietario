@@ -194,6 +194,48 @@ function receiveSharedPairingFromUrl() {
   history.replaceState(null, "", location.pathname);
 }
 
+async function receiveSharedFileFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const receiveMode = params.get("recibir");
+  const id = params.get("id");
+  if (receiveMode === "archivo-grande") {
+    showToast("El archivo recibido supera el límite de 10 MB.");
+    history.replaceState(null, "", location.pathname);
+    return true;
+  }
+  if (receiveMode !== "archivo" || !id) return false;
+
+  const sharedUrl = `./__shared__/${encodeURIComponent(id)}`;
+  try {
+    const response = await fetch(sharedUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error("Android no pudo entregar el documento. Compártelo nuevamente desde WhatsApp.");
+    const encodedName = response.headers.get("X-SM-File-Name") || "actualizacion.smprop";
+    let fileName = "actualizacion.smprop";
+    try { fileName = decodeURIComponent(encodedName); } catch { fileName = encodedName; }
+    const blob = await response.blob();
+    const text = await blob.text();
+    const lowerName = fileName.toLocaleLowerCase("es");
+    const pairingToken = extractPairingToken(text);
+
+    if (lowerName.endsWith(".smpair") || pairingToken) {
+      if (!pairingToken) throw new Error("El archivo .smpair está incompleto o no es válido.");
+      showPairing("Archivo recibido desde WhatsApp. Toca Preparar este celular.");
+      el("pairingTokenInput").value = pairingToken;
+      el("pairingFileName").textContent = fileName;
+    } else {
+      const updateFile = new File([blob], lowerName.endsWith(".smprop") ? fileName : "actualizacion.smprop", { type: blob.type || "application/json" });
+      await importOwnerUpdate(updateFile);
+    }
+  } catch (error) {
+    if (!state.pairing) showPairing(error.message || "No se pudo leer el documento recibido.");
+    else showToast(error.message || "No se pudo leer el documento recibido.");
+  } finally {
+    fetch(sharedUrl, { method: "DELETE" }).catch(() => {});
+    history.replaceState(null, "", location.pathname);
+  }
+  return true;
+}
+
 async function pairDevice() {
   setBusy(true); el("pairingError").textContent = "";
   try {
@@ -375,7 +417,8 @@ async function start() {
   document.title = PRODUCT.ownerName; bindEvents();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) navigator.serviceWorker.register("service-worker.js").catch(() => {});
   await restore();
-  if (!state.pairing) receiveSharedPairingFromUrl();
+  const receivedFile = await receiveSharedFileFromUrl();
+  if (!receivedFile && !state.pairing) receiveSharedPairingFromUrl();
 }
 
 start();

@@ -6,9 +6,14 @@ No contiene datos de propiedades, emparejamientos ni claves.
 Publicar todo su contenido en una dirección HTTPS conservando los nombres.
 En iPhone: abrir con Safari > Compartir > Añadir a pantalla de inicio.
 
-La información se recibe manualmente mediante:
-- .smpair: preparación inicial del celular.
-- .smprop: actualizaciones cifradas enviadas por WhatsApp.
+En Android, después de instalar la aplicación:
+- En WhatsApp mantenga presionado el documento y toque Compartir.
+- Elija SM Propietario. La aplicación leerá directamente el archivo.
+- .smpair prepara inicialmente el celular.
+- .smprop muestra una vista previa antes de actualizar el dashboard.
+
+La búsqueda manual de archivos queda disponible solo como alternativa.
+En iPhone se mantiene la importación mediante el selector de archivos.
 
 No abrir index.html directamente desde Archivos: para instalarse y trabajar
 offline necesita servirse por HTTPS (o localhost durante pruebas técnicas).
