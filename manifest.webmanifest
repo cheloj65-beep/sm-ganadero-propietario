@@ -10,5 +10,14 @@
   "theme_color": "#202c46",
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "share_target": {
+    "action": "./?recibir=whatsapp",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
+  "file_handlers": [
+    { "action": "./?recibir=archivo", "accept": { "text/plain": [".smpair"], "application/json": [".smprop"] } }
   ]
 }

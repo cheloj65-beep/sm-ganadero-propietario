@@ -163,6 +163,37 @@ function showToast(message) {
   window.clearTimeout(showToast.timer); showToast.timer = window.setTimeout(() => el("toast").classList.add("hidden"), 3200);
 }
 
+function extractPairingToken(value) {
+  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  const match = normalized.match(/CGP1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+  return match ? match[0] : "";
+}
+
+async function pastePairingFromClipboard() {
+  el("pairingError").textContent = "";
+  try {
+    const received = await navigator.clipboard.readText();
+    const token = extractPairingToken(received);
+    if (!token) throw new Error("No se encontró un código SM válido. Copia primero el mensaje largo de WhatsApp.");
+    el("pairingTokenInput").value = token;
+    showToast("Código pegado. Ahora toca Preparar este celular");
+  } catch (error) {
+    el("pairingError").textContent = error?.name === "NotAllowedError"
+      ? "Android no permitió pegar automáticamente. Mantén presionado el cuadro del código y toca Pegar."
+      : (error.message || "No se pudo leer el código copiado.");
+    el("pairingTokenInput").focus();
+  }
+}
+
+function receiveSharedPairingFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const token = extractPairingToken([params.get("text"), params.get("title"), params.get("url")].filter(Boolean).join(" "));
+  if (!token) return;
+  el("pairingTokenInput").value = token;
+  el("pairingError").textContent = "Código recibido desde WhatsApp. Toca Preparar este celular.";
+  history.replaceState(null, "", location.pathname);
+}
+
 async function pairDevice() {
   setBusy(true); el("pairingError").textContent = "";
   try {
@@ -321,6 +352,7 @@ async function restore() {
 
 function bindEvents() {
   el("pairButton").addEventListener("click", pairDevice);
+  el("pastePairingButton").addEventListener("click", pastePairingFromClipboard);
   el("pairingFileInput").addEventListener("change", async event => { const file = event.target.files[0]; if (!file) return; el("pairingFileName").textContent = file.name; el("pairingTokenInput").value = (await file.text()).trim(); });
   el("syncButton").addEventListener("click", () => el("updateFileInput").click());
   el("importButton").addEventListener("click", () => el("updateFileInput").click());
@@ -343,6 +375,7 @@ async function start() {
   document.title = PRODUCT.ownerName; bindEvents();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) navigator.serviceWorker.register("service-worker.js").catch(() => {});
   await restore();
+  if (!state.pairing) receiveSharedPairingFromUrl();
 }
 
 start();
