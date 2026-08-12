@@ -204,7 +204,8 @@ async function receiveSharedFileFromUrl() {
     return true;
   }
   if (receiveMode === "sin-archivo" || receiveMode === "entrega-invalida") {
-    const message = "WhatsApp abrió SM Propietario, pero Android no entregó el contenido del documento. Vuelve a WhatsApp, mantén presionado el archivo, toca Compartir y elige SM Propietario.";
+    const detail = params.get("detalle");
+    const message = detail || "WhatsApp abrió SM Propietario, pero Android no entregó el contenido del documento. Vuelve a WhatsApp, mantén presionado el archivo, toca Compartir y elige SM Propietario.";
     if (!state.pairing) showPairing(message);
     else window.alert(message);
     history.replaceState(null, "", location.pathname);
