@@ -1,0 +1,14 @@
+SM PROPIETARIO · PWA V1
+
+Esta carpeta contiene solamente la interfaz instalable para iPhone y Android.
+No contiene datos de propiedades, emparejamientos ni claves.
+
+Publicar todo su contenido en una dirección HTTPS conservando los nombres.
+En iPhone: abrir con Safari > Compartir > Añadir a pantalla de inicio.
+
+La información se recibe manualmente mediante:
+- .smpair: preparación inicial del celular.
+- .smprop: actualizaciones cifradas enviadas por WhatsApp.
+
+No abrir index.html directamente desde Archivos: para instalarse y trabajar
+offline necesita servirse por HTTPS (o localhost durante pruebas técnicas).

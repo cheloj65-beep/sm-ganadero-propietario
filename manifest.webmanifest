@@ -1,0 +1,14 @@
+{
+  "name": "SM Ganadero · Propietario",
+  "short_name": "SM Propietario",
+  "description": "Panel seguro de consulta para propietarios ganaderos.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#202c46",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
