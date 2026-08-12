@@ -1,7 +1,7 @@
-const CACHE = "sm-owner-shell-v11";
+const CACHE = "sm-owner-shell-v12";
 const SHARE_CACHE = "sm-owner-shared-v1";
 const BASE = new URL("./", self.location).pathname;
-const SHELL = [BASE, `${BASE}app.css?v=11`, `${BASE}app.js?v=11`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
+const SHELL = [BASE, `${BASE}app.css?v=12`, `${BASE}app.js?v=12`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
 self.addEventListener("message", event => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });

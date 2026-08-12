@@ -9,7 +9,7 @@ const PRODUCT = Object.freeze({
   deviceDatabase: "sm-owner-device.v1"
 });
 
-const state = { pairingToken: "", pairing: null, snapshots: [], activeFarm: "", metric: "births", installPrompt: null, pendingSnapshot: null };
+const state = { pairingToken: "", pairing: null, snapshots: [], activeFarm: "", metric: "births", installPrompt: null, pendingSnapshot: null, pendingSnapshots: [] };
 const el = id => document.getElementById(id);
 const fmt = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 0 });
 const fmt1 = new Intl.NumberFormat("es-BO", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -235,7 +235,7 @@ async function receiveSharedFileFromUrl() {
         showPairing("Archivo recibido desde WhatsApp. Revisa y toca Preparar este celular para reemplazar la vinculación actual.");
       }
     } else {
-      const updateFile = new File([blob], lowerName.endsWith(".smprop") ? fileName : "actualizacion.smprop", { type: blob.type || "application/json" });
+      const updateFile = new File([blob], (lowerName.endsWith(".smprop") || lowerName.endsWith(".smvet")) ? fileName : "actualizacion.smprop", { type: blob.type || "application/json" });
       await importOwnerUpdate(updateFile);
     }
   } catch (error) {
@@ -264,21 +264,27 @@ async function pairDevice() {
 async function importOwnerUpdate(file) {
   try {
     if (!state.pairing) throw new Error("Primero prepara este celular con el archivo .smpair.");
-    if (!file || !file.name.toLocaleLowerCase("es").endsWith(".smprop")) throw new Error("Selecciona un archivo de actualización .smprop.");
+    const lowerName = file?.name?.toLocaleLowerCase("es") || "";
+    if (!file || (!lowerName.endsWith(".smprop") && !lowerName.endsWith(".smvet"))) throw new Error("Selecciona una actualización .smprop o .smvet.");
     if (Number(file.size || 0) <= 0) throw new Error("El archivo recibido está vacío. No se dañaron tus datos: vuelve a descargarlo desde WhatsApp o solicita que lo envíen nuevamente como documento.");
     const rawText = (await file.text()).replace(/^\uFEFF/, "").trim();
     if (!rawText) throw new Error("Android entregó un documento vacío. Descárgalo nuevamente desde WhatsApp antes de importarlo.");
     if (!rawText.startsWith("{") || !rawText.endsWith("}")) throw new Error(`El documento llegó incompleto (${file.size} bytes). Vuelve a descargarlo o pide que lo envíen otra vez como documento .smprop.`);
-    let envelope;
-    try { envelope = JSON.parse(rawText); }
+    let document;
+    try { document = JSON.parse(rawText); }
     catch { throw new Error(`El documento no terminó de descargarse correctamente (${file.size} bytes). Elimínalo del celular, descárgalo nuevamente desde WhatsApp y vuelve a intentar.`); }
-    if (!envelope || envelope.contractVersion !== PRODUCT.syncContract || !envelope.pairingId || !envelope.ciphertext || !envelope.authenticationTag)
-      throw new Error("El archivo no es una actualización válida de SM Ganadero o está incompleto. Solicita un .smprop nuevo.");
-    const snapshot = await decryptEnvelope(envelope, state.pairing);
-    const current = state.snapshots.find(row => row.farm.toLocaleLowerCase("es") === snapshot.farm.toLocaleLowerCase("es"));
-    if (current && Number(current.sequence || 0) >= Number(snapshot.sequence || 0)) throw new Error("Esta actualización ya fue importada o es anterior a la guardada.");
-    state.pendingSnapshot = snapshot;
-    showUpdatePreview(snapshot);
+    const envelopes = document?.contractVersion === "sm-veterinarian-sync.v1" && Array.isArray(document.updates) ? document.updates : [document];
+    if (!envelopes.length || envelopes.some(envelope => !envelope || envelope.contractVersion !== PRODUCT.syncContract || !envelope.pairingId || !envelope.ciphertext || !envelope.authenticationTag))
+      throw new Error("El archivo no es una actualización válida de SM Ganadero o está incompleto.");
+    const snapshots = [];
+    for (const envelope of envelopes) {
+      const snapshot = await decryptEnvelope(envelope, state.pairing);
+      const current = state.snapshots.find(row => row.farm.toLocaleLowerCase("es") === snapshot.farm.toLocaleLowerCase("es"));
+      if (!current || Number(current.sequence || 0) < Number(snapshot.sequence || 0)) snapshots.push(snapshot);
+    }
+    if (!snapshots.length) throw new Error("Esta actualización ya fue importada o es anterior a la guardada.");
+    state.pendingSnapshots = snapshots; state.pendingSnapshot = snapshots[0];
+    showUpdatePreview(snapshots[0], snapshots.length);
   } catch (error) {
     const message = error?.message || "No se pudo abrir la actualización.";
     window.alert(message);
@@ -286,17 +292,17 @@ async function importOwnerUpdate(file) {
   } finally { el("updateFileInput").value = ""; }
 }
 
-function showUpdatePreview(snapshot) {
+function showUpdatePreview(snapshot, total = 1) {
   const summary = snapshot.summary || {};
-  el("previewContent").innerHTML = `<div class="preview-farm"><strong>${h(snapshot.farm)}</strong><span>${h(snapshot.ownerName || "Propietario")} · ${h(snapshot.municipality || "")}</span></div><div class="preview-grid"><div><small>Preparada</small><b>${h(latestText(snapshot.generatedAtUtc))}</b></div><div><small>Animales</small><b>${fmt.format(summary.activeAnimals || 0)}</b></div><div><small>Ventas netas</small><b>${h(money(summary.netSalesYearBs))}</b></div><div><small>Resultado</small><b class="${Number(summary.operatingResultYearBs || 0) < 0 ? "negative" : "positive"}">${h(money(summary.operatingResultYearBs))}</b></div></div><p>Al confirmar, esta información reemplazará el dashboard anterior de esta propiedad.</p>`;
+  el("previewContent").innerHTML = `<div class="preview-farm"><strong>${total > 1 ? `${total} propiedades del veterinario` : h(snapshot.farm)}</strong><span>${total > 1 ? `Incluye: ${state.pendingSnapshots.map(item => h(item.farm)).join(", ")}` : `${h(snapshot.ownerName || "Propietario")} · ${h(snapshot.municipality || "")}`}</span></div><div class="preview-grid"><div><small>Preparada</small><b>${h(latestText(snapshot.generatedAtUtc))}</b></div><div><small>Primera propiedad</small><b>${h(snapshot.farm)}</b></div><div><small>Animales</small><b>${fmt.format(summary.activeAnimals || 0)}</b></div><div><small>Acceso</small><b>${h(state.pairing?.accessMode || "Propietario")}</b></div></div><p>Al confirmar se actualizarán únicamente las propiedades incluidas en este archivo.</p>`;
   el("previewError").textContent = "";
   el("updatePreview").classList.remove("hidden");
 }
 
 function confirmOwnerUpdate() {
-  const snapshot = state.pendingSnapshot; if (!snapshot) return;
-  state.snapshots = state.snapshots.filter(row => row.farm.toLocaleLowerCase("es") !== snapshot.farm.toLocaleLowerCase("es"));
-  state.snapshots.push(snapshot); state.activeFarm = snapshot.farm; state.pendingSnapshot = null;
+  const updates = state.pendingSnapshots.length ? state.pendingSnapshots : (state.pendingSnapshot ? [state.pendingSnapshot] : []); if (!updates.length) return;
+  for (const snapshot of updates) { state.snapshots = state.snapshots.filter(row => row.farm.toLocaleLowerCase("es") !== snapshot.farm.toLocaleLowerCase("es")); state.snapshots.push(snapshot); }
+  state.activeFarm = updates[0].farm; state.pendingSnapshot = null; state.pendingSnapshots = [];
   saveConfiguration(state.pairingToken); el("updatePreview").classList.add("hidden"); showDashboard(); render(); setOffline(false); showToast("Dashboard actualizado correctamente");
 }
 

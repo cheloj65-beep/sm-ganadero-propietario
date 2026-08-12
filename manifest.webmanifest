@@ -2,7 +2,7 @@
   "name": "SM Ganadero · Propietario",
   "short_name": "SM Propietario",
   "description": "Panel seguro de consulta para propietarios ganaderos.",
-  "id": "./",
+  "id": "/mobile/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -22,12 +22,12 @@
       "files": [
         {
           "name": "files",
-          "accept": [".smpair", ".smprop", "text/plain", "application/json", "application/octet-stream", "application/x-sm-pairing", "application/vnd.smganadero.pairing", "application/vnd.smganadero.owner-update"]
+          "accept": [".smpair", ".smprop", ".smvet", "text/plain", "application/json", "application/octet-stream", "application/x-sm-pairing", "application/vnd.smganadero.pairing", "application/vnd.smganadero.owner-update"]
         }
       ]
     }
   },
   "file_handlers": [
-    { "action": "./?recibir=archivo", "accept": { "text/plain": [".smpair"], "application/json": [".smprop"] } }
+    { "action": "./?recibir=archivo", "accept": { "text/plain": [".smpair"], "application/json": [".smprop", ".smvet"] } }
   ]
 }

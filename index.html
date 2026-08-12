@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="SM Propietario">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=11">
+  <link rel="stylesheet" href="app.css?v=12">
   <title>Panel del propietario</title>
 </head>
 <body>
@@ -40,7 +40,7 @@
       <div class="mini-tag">SM</div>
       <div class="brand-copy"><strong id="farmTitle">Propiedad</strong><small id="updatedText">Sin actualizar</small></div>
       <button id="syncButton" class="icon-button" type="button" aria-label="Importar actualización"><span>＋</span></button>
-      <input id="updateFileInput" type="file" accept=".smprop,application/json" hidden>
+      <input id="updateFileInput" type="file" accept=".smprop,.smvet,application/json" hidden>
     </header>
     <div id="offlineBanner" class="offline hidden">Sin conexión · mostrando la última actualización guardada</div>
     <section id="summarySection" class="hero">
@@ -57,12 +57,12 @@
     <section id="managementSection" class="content-section"><div class="section-head"><div><h2>Gestión</h2><p>Reproducción y economía en una misma lectura</p></div></div><div id="managementGrid" class="management-grid"></div><div id="managementKpis" class="kpi-grid management-kpis"></div></section>
     <section id="fieldSection" class="content-section"><div class="section-head"><div><h2>Campo y potreros</h2><p>Ocupación frente a capacidad estimada</p></div></div><div id="paddockList"></div><div class="section-head inventory-head"><div><h2>Inventario</h2><p>Distribución por categoría</p></div></div><div id="categoryList" class="panel"></div></section>
     <section id="workSection" class="content-section"><div class="section-head"><div><h2>Trabajos recientes</h2><p>Seguimiento de las jornadas realizadas</p></div></div><div id="workList" class="timeline"></div></section>
-    <section id="settingsSection" class="content-section settings"><div class="section-head"><div><h2>Este celular</h2><p>Acceso seguro de consulta</p></div></div><div class="panel"><p id="pairingInfo"></p><button id="importButton" class="primary-action compact-action" type="button">Importar actualización .smprop</button><button id="installButton" class="secondary-action hidden" type="button">Instalar aplicación</button><div id="iosInstallHelp" class="ios-help hidden"><strong>Instalar en iPhone</strong><span>En Safari toca Compartir y luego “Añadir a pantalla de inicio”.</span></div><button id="disconnectButton" class="danger-action" type="button">Desvincular celular</button><small>Al desvincular se eliminan de este dispositivo la clave y los dashboards guardados.</small></div></section>
+    <section id="settingsSection" class="content-section settings"><div class="section-head"><div><h2>Este celular</h2><p>Acceso seguro de consulta</p></div></div><div class="panel"><p id="pairingInfo"></p><button id="importButton" class="primary-action compact-action" type="button">Importar actualización .smprop / .smvet</button><button id="installButton" class="secondary-action hidden" type="button">Instalar aplicación</button><div id="iosInstallHelp" class="ios-help hidden"><strong>Instalar en iPhone</strong><span>En Safari toca Compartir y luego “Añadir a pantalla de inicio”.</span></div><button id="disconnectButton" class="danger-action" type="button">Desvincular celular</button><small>Al desvincular se eliminan de este dispositivo la clave y los dashboards guardados.</small></div></section>
     <footer>SM Ganadero · Una solución de Calivet Bolivia · Consulta segura; los datos se modifican únicamente desde la computadora del veterinario</footer>
   </main>
   <nav id="bottomNav" class="bottom-nav hidden"><a href="#summarySection"><b>R</b>Resumen</a><a href="#managementSection"><b>G</b>Gestión</a><a href="#fieldSection"><b>C</b>Campo</a><a href="#workSection"><b>T</b>Trabajos</a><a href="#settingsSection"><b>⋯</b>Más</a></nav>
   <div id="toast" class="toast hidden" role="status"></div>
   <div id="updatePreview" class="preview-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle"><section class="preview-card"><span class="eyebrow">Actualización recibida</span><h2 id="previewTitle">Revisar antes de guardar</h2><div id="previewContent" class="preview-content"></div><p id="previewError" class="form-error"></p><div class="preview-actions"><button id="cancelUpdateButton" class="secondary-action" type="button">Cancelar</button><button id="confirmUpdateButton" class="primary-action" type="button">Confirmar actualización</button></div></section></div>
-  <script src="app.js?v=11" defer></script>
+  <script src="app.js?v=12" defer></script>
 </body>
 </html>
