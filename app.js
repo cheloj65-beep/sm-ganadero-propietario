@@ -265,14 +265,24 @@ async function importOwnerUpdate(file) {
   try {
     if (!state.pairing) throw new Error("Primero prepara este celular con el archivo .smpair.");
     if (!file || !file.name.toLocaleLowerCase("es").endsWith(".smprop")) throw new Error("Selecciona un archivo de actualización .smprop.");
-    const envelope = JSON.parse(await file.text());
+    if (Number(file.size || 0) <= 0) throw new Error("El archivo recibido está vacío. No se dañaron tus datos: vuelve a descargarlo desde WhatsApp o solicita que lo envíen nuevamente como documento.");
+    const rawText = (await file.text()).replace(/^\uFEFF/, "").trim();
+    if (!rawText) throw new Error("Android entregó un documento vacío. Descárgalo nuevamente desde WhatsApp antes de importarlo.");
+    if (!rawText.startsWith("{") || !rawText.endsWith("}")) throw new Error(`El documento llegó incompleto (${file.size} bytes). Vuelve a descargarlo o pide que lo envíen otra vez como documento .smprop.`);
+    let envelope;
+    try { envelope = JSON.parse(rawText); }
+    catch { throw new Error(`El documento no terminó de descargarse correctamente (${file.size} bytes). Elimínalo del celular, descárgalo nuevamente desde WhatsApp y vuelve a intentar.`); }
+    if (!envelope || envelope.contractVersion !== PRODUCT.syncContract || !envelope.pairingId || !envelope.ciphertext || !envelope.authenticationTag)
+      throw new Error("El archivo no es una actualización válida de SM Ganadero o está incompleto. Solicita un .smprop nuevo.");
     const snapshot = await decryptEnvelope(envelope, state.pairing);
     const current = state.snapshots.find(row => row.farm.toLocaleLowerCase("es") === snapshot.farm.toLocaleLowerCase("es"));
     if (current && Number(current.sequence || 0) >= Number(snapshot.sequence || 0)) throw new Error("Esta actualización ya fue importada o es anterior a la guardada.");
     state.pendingSnapshot = snapshot;
     showUpdatePreview(snapshot);
   } catch (error) {
-    showToast(error.message || "No se pudo abrir la actualización.");
+    const message = error?.message || "No se pudo abrir la actualización.";
+    window.alert(message);
+    showToast("No se importó el documento. Revisa el mensaje mostrado.");
   } finally { el("updateFileInput").value = ""; }
 }
 
