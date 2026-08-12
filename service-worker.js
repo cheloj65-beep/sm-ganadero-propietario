@@ -1,7 +1,10 @@
-const CACHE = "sm-owner-shell-v10";
+const CACHE = "sm-owner-shell-v11";
 const SHARE_CACHE = "sm-owner-shared-v1";
 const BASE = new URL("./", self.location).pathname;
-const SHELL = [BASE, `${BASE}app.css?v=10`, `${BASE}app.js?v=10`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
+const SHELL = [BASE, `${BASE}app.css?v=11`, `${BASE}app.js?v=11`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
+self.addEventListener("message", event => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+});
 self.addEventListener("install", event => event.waitUntil(Promise.all([
   caches.open(CACHE).then(cache => cache.addAll(SHELL)),
   self.skipWaiting()

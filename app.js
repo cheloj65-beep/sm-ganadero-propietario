@@ -435,9 +435,42 @@ function bindEvents() {
   el("iosInstallHelp").classList.toggle("hidden", !isiPhone || installed);
 }
 
+async function ensureCurrentServiceWorker() {
+  if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) return;
+  const build = "sm-owner-shell-v11";
+  const previousBuild = localStorage.getItem("sm-owner-shell-version");
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  try {
+    const registration = await navigator.serviceWorker.register("service-worker.js?v=11", { updateViaCache: "none" });
+    await registration.update().catch(() => {});
+    const worker = registration.installing || registration.waiting;
+    if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    if (worker && worker.state !== "activated" && worker.state !== "redundant") {
+      await new Promise(resolve => {
+        const finish = () => {
+          if (worker.state === "activated" || worker.state === "redundant") {
+            worker.removeEventListener("statechange", finish);
+            resolve();
+          }
+        };
+        worker.addEventListener("statechange", finish);
+        setTimeout(resolve, 3500);
+      });
+    }
+    localStorage.setItem("sm-owner-shell-version", build);
+    if (hadController && previousBuild !== build && !sessionStorage.getItem(`${build}-reloaded`)) {
+      sessionStorage.setItem(`${build}-reloaded`, "1");
+      location.reload();
+      await new Promise(() => {});
+    }
+  } catch {
+    // La consulta sigue funcionando sin conexión con la versión ya instalada.
+  }
+}
+
 async function start() {
   document.title = PRODUCT.ownerName; bindEvents();
-  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  await ensureCurrentServiceWorker();
   await restore();
   const receivedFile = await receiveSharedFileFromUrl();
   if (!receivedFile && !state.pairing) receiveSharedPairingFromUrl();
