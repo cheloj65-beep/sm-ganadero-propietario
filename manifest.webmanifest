@@ -22,7 +22,7 @@
       "files": [
         {
           "name": "files",
-          "accept": [".smpair", ".smprop", "text/plain", "application/json", "application/octet-stream"]
+          "accept": [".smpair", ".smprop", "text/plain", "application/json", "application/octet-stream", "application/x-sm-pairing", "application/vnd.smganadero.pairing", "application/vnd.smganadero.owner-update"]
         }
       ]
     }

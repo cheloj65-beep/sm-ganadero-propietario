@@ -203,6 +203,13 @@ async function receiveSharedFileFromUrl() {
     history.replaceState(null, "", location.pathname);
     return true;
   }
+  if (receiveMode === "sin-archivo" || receiveMode === "entrega-invalida") {
+    const message = "WhatsApp abrió SM Propietario, pero Android no entregó el contenido del documento. Vuelve a WhatsApp, mantén presionado el archivo, toca Compartir y elige SM Propietario.";
+    if (!state.pairing) showPairing(message);
+    else window.alert(message);
+    history.replaceState(null, "", location.pathname);
+    return true;
+  }
   if (receiveMode !== "archivo" || !id) return false;
 
   const sharedUrl = `./__shared__/${encodeURIComponent(id)}`;
@@ -219,9 +226,13 @@ async function receiveSharedFileFromUrl() {
 
     if (lowerName.endsWith(".smpair") || pairingToken) {
       if (!pairingToken) throw new Error("El archivo .smpair está incompleto o no es válido.");
-      showPairing("Archivo recibido desde WhatsApp. Toca Preparar este celular.");
       el("pairingTokenInput").value = pairingToken;
       el("pairingFileName").textContent = fileName;
+      if (!state.pairing) {
+        await pairDevice();
+      } else {
+        showPairing("Archivo recibido desde WhatsApp. Revisa y toca Preparar este celular para reemplazar la vinculación actual.");
+      }
     } else {
       const updateFile = new File([blob], lowerName.endsWith(".smprop") ? fileName : "actualizacion.smprop", { type: blob.type || "application/json" });
       await importOwnerUpdate(updateFile);

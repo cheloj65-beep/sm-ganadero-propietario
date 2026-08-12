@@ -1,23 +1,35 @@
-const CACHE = "sm-owner-shell-v7";
+const CACHE = "sm-owner-shell-v8";
 const SHARE_CACHE = "sm-owner-shared-v1";
 const BASE = new URL("./", self.location).pathname;
-const SHELL = [BASE, `${BASE}app.css?v=7`, `${BASE}app.js?v=7`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
-self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL))));
+const SHELL = [BASE, `${BASE}app.css?v=8`, `${BASE}app.js?v=8`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
+self.addEventListener("install", event => event.waitUntil(Promise.all([
+  caches.open(CACHE).then(cache => cache.addAll(SHELL)),
+  self.skipWaiting()
+])));
 self.addEventListener("activate", event => event.waitUntil(Promise.all([
   caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE && key !== SHARE_CACHE).map(key => caches.delete(key)))),
   self.clients.claim()
 ])));
 
 async function receiveSharedContent(request) {
-  const data = await request.formData();
-  const file = data.getAll("files").find(item => item instanceof Blob && item.size > 0);
+  let data;
+  try {
+    data = await request.formData();
+  } catch {
+    return Response.redirect(new URL("?recibir=entrega-invalida", self.registration.scope).href, 303);
+  }
+
+  const values = [];
+  for (const [field, item] of data.entries()) {
+    if (item && typeof item === "object" && typeof item.arrayBuffer === "function") values.push({ field, item });
+  }
+  const received = values.find(entry => entry.item.size > 0);
+  const file = received?.item;
   if (!file) {
-    const query = new URLSearchParams({
-      recibir: "whatsapp",
-      title: String(data.get("title") || ""),
-      text: String(data.get("text") || ""),
-      url: String(data.get("url") || "")
-    });
+    const sharedText = [data.get("title"), data.get("text"), data.get("url")].filter(Boolean).join(" ");
+    const query = new URLSearchParams(sharedText
+      ? { recibir: "whatsapp", text: sharedText }
+      : { recibir: "sin-archivo", campos: [...data.keys()].join(",") || "ninguno" });
     return Response.redirect(new URL(`?${query}`, self.registration.scope).href, 303);
   }
 
@@ -32,7 +44,9 @@ async function receiveSharedContent(request) {
   await cache.put(sharedUrl, new Response(file, {
     headers: {
       "Content-Type": file.type || "application/octet-stream",
-      "X-SM-File-Name": encodeURIComponent(name)
+      "X-SM-File-Name": encodeURIComponent(name),
+      "X-SM-Share-Field": encodeURIComponent(received.field || "files"),
+      "X-SM-File-Size": String(file.size)
     }
   }));
   return Response.redirect(new URL(`?recibir=archivo&id=${encodeURIComponent(id)}`, self.registration.scope).href, 303);
