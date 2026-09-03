@@ -2,14 +2,14 @@
 
 const PRODUCT = Object.freeze({
   name: "SM Ganadero",
-  ownerName: "SM Ganadero · Propietario",
+  ownerName: "SM Ganadero · Campo",
   pairingContract: "sm-owner-pairing.v1",
   syncContract: "sm-owner-sync.v1",
   storageKey: "sm-owner-mobile.v1",
   deviceDatabase: "sm-owner-device.v1"
 });
 
-const state = { pairingToken: "", pairing: null, snapshots: [], activeFarm: "", metric: "births", installPrompt: null, pendingSnapshot: null, pendingSnapshots: [] };
+const state = { pairingToken: "", pairing: null, snapshots: [], activeFarm: "", activeModule: "", metric: "births", installPrompt: null, pendingSnapshot: null, pendingSnapshots: [] };
 const el = id => document.getElementById(id);
 const fmt = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 0 });
 const fmt1 = new Intl.NumberFormat("es-BO", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -142,7 +142,7 @@ function savedConfiguration() {
 }
 
 function saveConfiguration(token) {
-  localStorage.setItem(PRODUCT.storageKey, JSON.stringify({ token, snapshots: state.snapshots, activeFarm: state.activeFarm }));
+  localStorage.setItem(PRODUCT.storageKey, JSON.stringify({ token, snapshots: state.snapshots, activeFarm: state.activeFarm, activeModule: state.activeModule }));
 }
 
 function showPairing(message = "") {
@@ -152,6 +152,7 @@ function showPairing(message = "") {
 
 function showDashboard() {
   el("pairingView").classList.add("hidden"); el("dashboardView").classList.remove("hidden"); el("bottomNav").classList.remove("hidden");
+  window.setTimeout(() => window.SMGField?.refresh(), 0);
 }
 
 function setBusy(busy) {
@@ -205,7 +206,7 @@ async function receiveSharedFileFromUrl() {
   }
   if (receiveMode === "sin-archivo" || receiveMode === "entrega-invalida") {
     const detail = params.get("detalle");
-    const message = detail || "WhatsApp abrió SM Propietario, pero Android no entregó el contenido del documento. Vuelve a WhatsApp, mantén presionado el archivo, toca Compartir y elige SM Propietario.";
+    const message = detail || "WhatsApp abrió SM Ganadero, pero el teléfono no entregó el contenido del documento. Vuelve a WhatsApp, mantén presionado el archivo, toca Compartir y elige SM Ganadero.";
     if (!state.pairing) showPairing(message);
     else window.alert(message);
     history.replaceState(null, "", location.pathname);
@@ -256,7 +257,7 @@ async function pairDevice() {
     state.pairingToken = token; state.pairing = pairing; state.activeFarm = pairing.farms[0] || "";
     await getOrCreateDeviceIdentity();
     saveConfiguration(token);
-    showDashboard(); renderEmptyDashboard(); showToast("Celular preparado. Importa la primera actualización .smprop");
+    showDashboard(); renderEmptyDashboard(); showToast(`Celular preparado. Importa la primera actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`);
   } catch (error) { showPairing(error.message || "No se pudo vincular este celular."); }
   finally { setBusy(false); }
 }
@@ -302,7 +303,7 @@ function showUpdatePreview(snapshot, total = 1) {
 function confirmOwnerUpdate() {
   const updates = state.pendingSnapshots.length ? state.pendingSnapshots : (state.pendingSnapshot ? [state.pendingSnapshot] : []); if (!updates.length) return;
   for (const snapshot of updates) { state.snapshots = state.snapshots.filter(row => row.farm.toLocaleLowerCase("es") !== snapshot.farm.toLocaleLowerCase("es")); state.snapshots.push(snapshot); }
-  state.activeFarm = updates[0].farm; state.pendingSnapshot = null; state.pendingSnapshots = [];
+  state.activeFarm = updates[0].farm; state.activeModule = ""; state.pendingSnapshot = null; state.pendingSnapshots = [];
   saveConfiguration(state.pairingToken); el("updatePreview").classList.add("hidden"); showDashboard(); render(); setOffline(false); showToast("Dashboard actualizado correctamente");
 }
 
@@ -310,38 +311,50 @@ function renderEmptyDashboard() {
   el("farmTitle").textContent = state.activeFarm || "Propiedad";
   el("updatedText").textContent = "Celular preparado · sin datos todavía";
   el("heroMessage").textContent = "Importa el archivo enviado por el veterinario para ver la información de tu propiedad.";
-  el("heroStatus").classList.add("warning"); el("heroStatus").querySelector("span").textContent = "Importa una actualización .smprop";
+  el("heroStatus").classList.add("warning"); el("heroStatus").querySelector("span").textContent = `Importa una actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`;
   el("kpiGrid").innerHTML = [kpi("Animales activos", "—", "esperando actualización", "coral"), kpi("Nacimientos", "—", "esperando actualización", "good"), kpi("Ventas netas", "—", "esperando actualización"), kpi("Resultado operativo", "—", "esperando actualización", "navy")].join("");
   el("alertsList").innerHTML = `<div class="panel empty">Toca + para importar el archivo recibido por WhatsApp.</div>`; el("alertCount").textContent = "0 avisos";
   el("chart").innerHTML = ""; el("managementGrid").innerHTML = ""; el("managementKpis").innerHTML = ""; el("paddockList").innerHTML = `<div class="panel empty">Sin información todavía</div>`; el("categoryList").innerHTML = `<div class="empty">Sin información todavía</div>`; el("workList").innerHTML = `<div class="panel empty">Sin información todavía</div>`;
-  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${state.pairing.farms.join(", ")} · consulta únicamente`;
+  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${state.pairing.farms.join(", ")} · ${isVeterinarian() ? "registro de campo habilitado" : "consulta únicamente"}`;
+  window.SMGField?.refresh();
 }
 
 function activeSnapshot() { return state.snapshots.find(snapshot => snapshot.farm === state.activeFarm) || state.snapshots[0]; }
+function isVeterinarian() { return String(state.pairing?.accessMode || "").toLocaleLowerCase("es").includes("veterinario"); }
 function pct(value) { return Math.max(0, Math.min(100, Number(value || 0))); }
 function latestText(value) { return new Date(value).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" }); }
 
 function render() {
-  const snapshot = activeSnapshot(); if (!snapshot) return;
-  state.activeFarm = snapshot.farm;
-  const summary = snapshot.summary;
-  const critical = snapshot.alerts.filter(row => row.severity === "Crítica" || row.severity === "Atención").length;
-  const females = snapshot.monthlyTrend.reduce((sum, row) => sum + row.femaleBirths, 0);
-  const males = snapshot.monthlyTrend.reduce((sum, row) => sum + row.maleBirths, 0);
-  const propertyIdentity = [snapshot.ownerName, snapshot.municipality].filter(Boolean).join(" · ");
-  el("farmTitle").textContent = snapshot.farm; el("updatedText").textContent = `${propertyIdentity ? `${propertyIdentity} · ` : ""}Actualizado ${latestText(snapshot.dataUpdatedAtUtc)}`;
-  el("heroMessage").textContent = "Información productiva y económica consolidada para acompañar cada decisión.";
-  el("heroStatus").classList.toggle("warning", critical > 0); el("heroStatus").querySelector("span").textContent = critical ? `${critical} temas requieren atención` : "Sin alertas prioritarias";
+  if (!state.snapshots.length) return;
   renderFarmSwitcher();
+  const aggregate = state.activeFarm === "__all__" && isVeterinarian();
+  const snapshot = aggregate ? buildVeterinarianOverview() : activeSnapshot(); if (!snapshot) return;
+  if (!aggregate) state.activeFarm = snapshot.farm;
+  renderModuleSwitcher(snapshot, aggregate);
+  const moduleView = !aggregate && state.activeModule ? (snapshot.moduleViews || []).find(row => row.module === state.activeModule) : null;
+  if (state.activeModule && !moduleView) state.activeModule = "";
+  const view = moduleView ? moduleSnapshot(snapshot, moduleView) : snapshot;
+  const summary = view.summary;
+  const critical = view.alerts.filter(row => row.severity === "Crítica" || row.severity === "Atención").length;
+  const females = view.monthlyTrend.reduce((sum, row) => sum + row.femaleBirths, 0);
+  const males = view.monthlyTrend.reduce((sum, row) => sum + row.maleBirths, 0);
+  const propertyIdentity = aggregate ? `${state.snapshots.length} propiedades habilitadas` : [snapshot.ownerName, snapshot.municipality].filter(Boolean).join(" · ");
+  el("farmTitle").textContent = aggregate ? "Todas las propiedades" : `${snapshot.farm}${moduleView ? ` · ${moduleView.module}` : ""}`;
+  el("updatedText").textContent = `${propertyIdentity ? `${propertyIdentity} · ` : ""}Actualizado ${latestText(snapshot.dataUpdatedAtUtc)}`;
+  el("heroEyebrow").textContent = aggregate || isVeterinarian() ? "Panel del veterinario" : "Panel del propietario";
+  el("heroTitle").textContent = aggregate ? "Toda tu gestión, en un vistazo" : moduleView ? `${moduleView.module} en ${snapshot.farm}` : "Tu propiedad, clara de un vistazo";
+  el("heroMessage").textContent = aggregate ? "Vista consolidada de las propiedades que administra el veterinario." : moduleView ? `Indicadores exclusivos del módulo ${moduleView.module}; los costos generales permanecen en el resumen de la propiedad.` : "Información productiva y económica consolidada para acompañar cada decisión.";
+  el("heroStatus").classList.toggle("warning", critical > 0); el("heroStatus").querySelector("span").textContent = critical ? `${critical} temas requieren atención` : "Sin alertas prioritarias";
   el("kpiGrid").innerHTML = [
-    kpi("Animales activos", fmt.format(summary.activeAnimals), "existencia actual", "coral"),
+    kpi(aggregate ? "Propiedades" : "Animales activos", aggregate ? fmt.format(state.snapshots.length) : fmt.format(summary.activeAnimals), aggregate ? "gestión consolidada" : "existencia actual", "coral"),
     kpi(`Nacimientos ${new Date(snapshot.referenceDate).getFullYear()}`, fmt.format(summary.birthsYear), `${females} hembras · ${males} machos`, "good", "positive"),
     kpi("Ventas netas", money(summary.netSalesYearBs), `${summary.soldAnimalsYear} animales vendidos`),
-    kpi("Resultado operativo", money(summary.operatingResultYearBs), `Costo: ${money2(summary.costPerProducedKgBs)}/kg`, "navy", summary.operatingResultYearBs < 0 ? "negative" : "positive")
+    moduleView?.biotechnology ? kpi("Embriones viables", fmt.format(moduleView.biotechnology.viableEmbryos), `${fmt1.format(moduleView.biotechnology.viabilityRate * 100)} % de viabilidad`, "navy", "positive") : moduleView ? kpi("Trabajos recientes", fmt.format(view.recentWork.length), `en ${moduleView.module}`, "navy") : kpi("Resultado operativo", money(summary.operatingResultYearBs), `Costo: ${money2(summary.costPerProducedKgBs)}/kg`, "navy", summary.operatingResultYearBs < 0 ? "negative" : "positive")
   ].join("");
-  renderAlerts(snapshot.alerts); renderChart(snapshot); renderManagement(summary); renderPaddocks(snapshot.paddocks); renderCategories(snapshot.categories); renderWork(snapshot.recentWork);
-  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${state.pairing.farms.join(", ")} · consulta únicamente`;
+  renderAlerts(view.alerts); renderChart(view, Boolean(moduleView)); renderManagement(summary, Boolean(moduleView), moduleView?.biotechnology); renderPaddocks(view.paddocks); renderCategories(view.categories); renderWork(view.recentWork);
+  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${isVeterinarian() ? `Veterinario · ${state.pairing.farms.length} propiedades · registro de campo` : `${state.pairing.farms.join(", ")} · consulta únicamente`}`;
   saveConfiguration(state.pairingToken);
+  window.SMGField?.refresh();
 }
 
 function kpi(label, value, caption, tone = "", valueClass = "") {
@@ -350,8 +363,41 @@ function kpi(label, value, caption, tone = "", valueClass = "") {
 
 function renderFarmSwitcher() {
   const switcher = el("propertySwitcher"), select = el("farmSelect");
-  switcher.classList.toggle("hidden", state.snapshots.length < 2);
-  select.innerHTML = state.snapshots.map(row => `<option value="${h(row.farm)}" ${row.farm === state.activeFarm ? "selected" : ""}>${h(row.farm)}</option>`).join("");
+  switcher.classList.toggle("hidden", state.snapshots.length < 2 && !isVeterinarian());
+  const all = isVeterinarian() && state.snapshots.length > 1 ? `<option value="__all__" ${state.activeFarm === "__all__" ? "selected" : ""}>Todas las propiedades</option>` : "";
+  select.innerHTML = all + state.snapshots.map(row => `<option value="${h(row.farm)}" ${row.farm === state.activeFarm ? "selected" : ""}>${h(row.farm)}</option>`).join("");
+}
+
+function renderModuleSwitcher(snapshot, aggregate) {
+  const switcher = el("moduleSwitcher"), select = el("moduleSelect");
+  const modules = aggregate ? [] : (snapshot.productionModules || []).filter(Boolean);
+  switcher.classList.toggle("hidden", modules.length < 2);
+  select.innerHTML = `<option value="">Resumen general</option>` + modules.map(module => `<option value="${h(module)}" ${module === state.activeModule ? "selected" : ""}>${h(module)}</option>`).join("");
+  if (aggregate || modules.length < 2) state.activeModule = "";
+}
+
+function moduleSnapshot(snapshot, moduleView) {
+  const summary = { ...snapshot.summary, activeAnimals: moduleView.activeAnimals, birthsYear: moduleView.birthsYear, weaningsYear: moduleView.weaningsYear, deathsYear: moduleView.deathsYear, soldAnimalsYear: moduleView.soldAnimalsYear, netSalesYearBs: moduleView.netSalesYearBs, pregnant: moduleView.pregnant, empty: moduleView.empty, abortions: moduleView.abortions, pregnancyRate: moduleView.pregnancyRate, totalCostsYearBs: 0, operatingResultYearBs: 0, producedKgYear: 0, costPerProducedKgBs: 0, rainfallYearMm: 0 };
+  return { ...snapshot, summary, monthlyTrend: moduleView.monthlyTrend || [], categories: moduleView.categories || [], recentWork: moduleView.recentWork || [], biotechnology: moduleView.biotechnology || null };
+}
+
+function buildVeterinarianOverview() {
+  const snapshots = state.snapshots;
+  const sum = key => snapshots.reduce((total, row) => total + Number(row.summary?.[key] || 0), 0);
+  const diagnosed = sum("pregnant") + sum("empty") + sum("abortions");
+  const produced = sum("producedKgYear"), costs = sum("totalCostsYearBs");
+  const summary = { activeAnimals: sum("activeAnimals"), birthsYear: sum("birthsYear"), weaningsYear: sum("weaningsYear"), deathsYear: sum("deathsYear"), soldAnimalsYear: sum("soldAnimalsYear"), netSalesYearBs: sum("netSalesYearBs"), totalCostsYearBs: costs, operatingResultYearBs: sum("operatingResultYearBs"), producedKgYear: produced, costPerProducedKgBs: produced > 0 ? costs / produced : 0, rainfallYearMm: sum("rainfallYearMm"), pregnant: sum("pregnant"), empty: sum("empty"), abortions: sum("abortions"), pregnancyRate: diagnosed > 0 ? sum("pregnant") / diagnosed : 0 };
+  const monthlyTrend = Array.from({ length: 12 }, (_, index) => {
+    const rows = snapshots.map(row => row.monthlyTrend?.[index]).filter(Boolean); const total = key => rows.reduce((value, row) => value + Number(row[key] || 0), 0);
+    return { month: rows[0]?.month || new Date(new Date().getFullYear(), index, 1).toISOString(), monthName: rows[0]?.monthName || String(index + 1), births: total("births"), femaleBirths: total("femaleBirths"), maleBirths: total("maleBirths"), weanings: total("weanings"), deaths: total("deaths"), soldAnimals: total("soldAnimals"), netSalesBs: total("netSalesBs"), expensesBs: total("expensesBs"), rainfallMm: total("rainfallMm") };
+  });
+  const categoryMap = new Map();
+  snapshots.flatMap(snapshot => snapshot.categories || []).forEach(row => { const old = categoryMap.get(row.category) || { category: row.category, heads: 0, liveWeightKg: 0 }; old.heads += Number(row.heads || 0); old.liveWeightKg += Number(row.liveWeightKg || 0); categoryMap.set(row.category, old); });
+  const categories = [...categoryMap.values()].map(row => ({ ...row, averageWeightKg: row.heads ? row.liveWeightKg / row.heads : 0 })).sort((a, b) => b.heads - a.heads);
+  const alerts = snapshots.flatMap(snapshot => (snapshot.alerts || []).map(row => ({ ...row, title: `${snapshot.farm}: ${row.title}` })));
+  const recentWork = snapshots.flatMap(snapshot => (snapshot.recentWork || []).map(row => ({ ...row, farm: snapshot.farm }))).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const paddocks = snapshots.flatMap(snapshot => (snapshot.paddocks || []).map(row => ({ ...row, paddock: `${snapshot.farm} · ${row.paddock}` })));
+  return { farm: "Todas las propiedades", referenceDate: snapshots[0].referenceDate, dataUpdatedAtUtc: snapshots.map(row => row.dataUpdatedAtUtc).sort().at(-1), summary, monthlyTrend, categories, paddocks, alerts, recentWork };
 }
 
 function renderAlerts(rows) {
@@ -369,7 +415,9 @@ const metricDefinition = {
   rain: { value: row => row.rainfallMm, text: value => `${fmt.format(value)} mm` }
 };
 
-function renderChart(snapshot) {
+function renderChart(snapshot, moduleOnly = false) {
+  el("metricTabs").querySelectorAll("button").forEach(button => { button.disabled = moduleOnly && (button.dataset.metric === "costs" || button.dataset.metric === "rain"); button.classList.toggle("metric-hidden", button.disabled); });
+  if (moduleOnly && (state.metric === "costs" || state.metric === "rain")) state.metric = "births";
   const definition = metricDefinition[state.metric];
   const maximum = Math.max(0, ...snapshot.monthlyTrend.map(definition.value));
   el("chart").className = `chart ${state.metric}`;
@@ -380,13 +428,23 @@ function renderChart(snapshot) {
   el("metricTabs").querySelectorAll("button").forEach(button => button.classList.toggle("active", button.dataset.metric === state.metric));
 }
 
-function renderManagement(summary) {
+function renderManagement(summary, moduleOnly = false, biotechnology = null) {
+  if (biotechnology) {
+    el("managementGrid").innerHTML = `
+      <article class="panel repro-card"><div class="ring" style="--rate:${pct(biotechnology.viabilityRate * 100)}"><div><strong>${fmt1.format(biotechnology.viabilityRate * 100)} %</strong><small>viabilidad</small></div></div><div class="repro-copy"><h3>Biotecnología reproductiva</h3><p>Resultado acumulado de OPU/FIV y superovulación/TE.</p><div class="mini-stats"><div class="mini-stat"><b>${fmt.format(biotechnology.sessions)}</b><span>Sesiones</span></div><div class="mini-stat"><b>${fmt.format(biotechnology.recovered)}</b><span>Recuperados</span></div><div class="mini-stat"><b>${fmt.format(biotechnology.viableEmbryos)}</b><span>Viables</span></div></div></div></article>
+      <article class="panel"><div class="label">Transferencia embrionaria</div><h3>${fmt.format(biotechnology.pregnancies)} preñeces confirmadas</h3><p>${fmt.format(biotechnology.transferredEmbryos)} embriones transferidos · ${fmt1.format(biotechnology.pregnancyRate * 100)} % de preñez diagnosticada.</p><div class="result-line"><span>Costo por embrión viable</span><b>${money2(biotechnology.costPerViableEmbryoBs)}</b></div></article>`;
+    el("managementKpis").innerHTML = [
+      kpi("Costo de sesiones", money(biotechnology.totalCostBs), "laboratorio, honorarios y productos"),
+      kpi("Embriones viables", fmt.format(biotechnology.viableEmbryos), "resultado acumulado", "good")
+    ].join("");
+    return;
+  }
   const economicMaximum = Math.max(1, summary.netSalesYearBs, summary.totalCostsYearBs);
   const resultClass = summary.operatingResultYearBs < 0 ? "negative" : "positive";
   el("managementGrid").innerHTML = `
     <article class="panel repro-card"><div class="ring" style="--rate:${pct(summary.pregnancyRate * 100)}"><div><strong>${fmt1.format(summary.pregnancyRate * 100)} %</strong><small>preñez</small></div></div><div class="repro-copy"><h3>Resultado reproductivo</h3><p>Último diagnóstico válido por matriz.</p><div class="mini-stats"><div class="mini-stat"><b>${summary.pregnant}</b><span>Preñadas</span></div><div class="mini-stat"><b>${summary.empty}</b><span>Vacías</span></div><div class="mini-stat"><b>${summary.abortions}</b><span>Abortos</span></div></div></div></article>
-    <article class="panel"><div class="label">Balance económico acumulado</div><div class="economic-row"><span>Ventas</span><div class="track"><div class="fill sales-fill" style="width:${pct(summary.netSalesYearBs / economicMaximum * 100)}%"></div></div><b>${money(summary.netSalesYearBs)}</b></div><div class="economic-row"><span>Producción</span><div class="track"><div class="fill cost-fill" style="width:${pct(summary.totalCostsYearBs / economicMaximum * 100)}%"></div></div><b>${money(summary.totalCostsYearBs)}</b></div><div class="result-line"><span>Resultado operativo</span><b class="${resultClass}">${money(summary.operatingResultYearBs)}</b></div><p class="balance-note">También considera compras, comercialización y variación de inventario.</p></article>`;
-  el("managementKpis").innerHTML = [kpi("Lluvia", `${fmt.format(summary.rainfallYearMm)} mm`, "acumulado anual"), kpi("Producción", `${fmt.format(summary.producedKgYear)} kg`, "balance de peso vivo", "coral"), kpi("Destetes", fmt.format(summary.weaningsYear), "en la gestión", "good"), kpi("Mortalidad", fmt.format(summary.deathsYear), "bajas registradas", "navy", summary.deathsYear > 0 ? "negative" : "positive")].join("");
+    ${moduleOnly ? `<article class="panel module-note"><div class="label">Lectura económica del módulo</div><h3>${money(summary.netSalesYearBs)} en ventas</h3><p>Los costos no se dividen automáticamente entre módulos. Revísalos en <strong>Resumen general</strong> para evitar cálculos engañosos.</p></article>` : `<article class="panel"><div class="label">Balance económico acumulado</div><div class="economic-row"><span>Ventas</span><div class="track"><div class="fill sales-fill" style="width:${pct(summary.netSalesYearBs / economicMaximum * 100)}%"></div></div><b>${money(summary.netSalesYearBs)}</b></div><div class="economic-row"><span>Producción</span><div class="track"><div class="fill cost-fill" style="width:${pct(summary.totalCostsYearBs / economicMaximum * 100)}%"></div></div><b>${money(summary.totalCostsYearBs)}</b></div><div class="result-line"><span>Resultado operativo</span><b class="${resultClass}">${money(summary.operatingResultYearBs)}</b></div><p class="balance-note">También considera compras, comercialización y variación de inventario.</p></article>`}`;
+  el("managementKpis").innerHTML = moduleOnly ? [kpi("Destetes", fmt.format(summary.weaningsYear), "en el módulo", "good"), kpi("Mortalidad", fmt.format(summary.deathsYear), "bajas registradas", "navy", summary.deathsYear > 0 ? "negative" : "positive")].join("") : [kpi("Lluvia", `${fmt.format(summary.rainfallYearMm)} mm`, "acumulado anual"), kpi("Producción", `${fmt.format(summary.producedKgYear)} kg`, "balance de peso vivo", "coral"), kpi("Destetes", fmt.format(summary.weaningsYear), "en la gestión", "good"), kpi("Mortalidad", fmt.format(summary.deathsYear), "bajas registradas", "navy", summary.deathsYear > 0 ? "negative" : "positive")].join("");
 }
 
 function renderPaddocks(rows) {
@@ -402,7 +460,7 @@ function renderCategories(rows) {
 }
 
 function renderWork(rows) {
-  el("workList").innerHTML = rows.length ? rows.slice(0, 8).map(row => `<article class="work"><time>${new Date(row.date).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" })}</time><strong>${h(row.work || "Jornada sanitaria")} · ${h(row.troop)}</strong><p>${fmt.format(row.workedAnimals)} de ${fmt.format(row.expectedAnimals)} animales trabajados${row.animalsFromAnotherTroop > 0 ? ` · ${row.animalsFromAnotherTroop} encontrados en otra tropa` : ""}</p></article>`).join("") : `<div class="panel empty">No hay jornadas registradas</div>`;
+  el("workList").innerHTML = rows.length ? rows.slice(0, 8).map(row => `<article class="work"><time>${new Date(row.date).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" })}${row.farm ? ` · ${h(row.farm)}` : ""}</time><strong>${h(row.work || "Jornada sanitaria")} · ${h(row.troop)}</strong><p>${row.productionModule ? `${h(row.productionModule)} · ` : ""}${fmt.format(row.workedAnimals)} de ${fmt.format(row.expectedAnimals)} animales trabajados${row.animalsFromAnotherTroop > 0 ? ` · ${row.animalsFromAnotherTroop} encontrados en otra tropa` : ""}</p></article>`).join("") : `<div class="panel empty">No hay jornadas registradas</div>`;
 }
 
 function setOffline(value) { el("offlineBanner").classList.toggle("hidden", !value || !state.snapshots.length); }
@@ -411,7 +469,7 @@ async function restore() {
   const saved = savedConfiguration();
   if (!saved?.token) { showPairing(); return; }
   try {
-    state.pairingToken = saved.token; state.pairing = await parsePairingToken(saved.token, false); state.snapshots = Array.isArray(saved.snapshots) ? saved.snapshots : []; state.activeFarm = saved.activeFarm || state.snapshots[0]?.farm || state.pairing.farms[0] || "";
+    state.pairingToken = saved.token; state.pairing = await parsePairingToken(saved.token, false); state.snapshots = Array.isArray(saved.snapshots) ? saved.snapshots : []; state.activeFarm = saved.activeFarm || state.snapshots[0]?.farm || state.pairing.farms[0] || ""; state.activeModule = saved.activeModule || "";
     el("pairingTokenInput").value = saved.token;
     showDashboard(); if (state.snapshots.length) render(); else renderEmptyDashboard();
   } catch (error) {
@@ -429,9 +487,10 @@ function bindEvents() {
   el("updateFileInput").addEventListener("change", event => importOwnerUpdate(event.target.files[0]));
   el("cancelUpdateButton").addEventListener("click", () => { state.pendingSnapshot = null; el("updatePreview").classList.add("hidden"); });
   el("confirmUpdateButton").addEventListener("click", confirmOwnerUpdate);
-  el("farmSelect").addEventListener("change", event => { state.activeFarm = event.target.value; render(); });
-  el("metricTabs").addEventListener("click", event => { const button = event.target.closest("button[data-metric]"); if (!button) return; state.metric = button.dataset.metric; renderChart(activeSnapshot()); });
-  el("disconnectButton").addEventListener("click", async () => { if (!confirm("¿Desvincular este celular y borrar los dashboards guardados? Para volver a usarlo necesitarás un código nuevo del veterinario.")) return; localStorage.removeItem(PRODUCT.storageKey); await clearDeviceIdentity(); state.pairing = null; state.snapshots = []; state.pairingToken = ""; el("pairingTokenInput").value = ""; showPairing("El celular quedó desvinculado. Solicita un código nuevo para volver a conectarlo."); });
+  el("farmSelect").addEventListener("change", event => { state.activeFarm = event.target.value; state.activeModule = ""; render(); });
+  el("moduleSelect").addEventListener("change", event => { state.activeModule = event.target.value; if (state.activeModule && (state.metric === "costs" || state.metric === "rain")) state.metric = "births"; render(); });
+  el("metricTabs").addEventListener("click", event => { const button = event.target.closest("button[data-metric]"); if (!button || button.disabled) return; state.metric = button.dataset.metric; render(); });
+  el("disconnectButton").addEventListener("click", async () => { if (!confirm("¿Desvincular este celular y borrar los dashboards y borradores guardados? Para volver a usarlo necesitarás un código nuevo del veterinario.")) return; localStorage.removeItem(PRODUCT.storageKey); window.SMGField?.clearAll(); await clearDeviceIdentity(); state.pairing = null; state.snapshots = []; state.pairingToken = ""; el("pairingTokenInput").value = ""; showPairing("El celular quedó desvinculado. Solicita un código nuevo del veterinario."); });
   el("installButton").addEventListener("click", async () => { if (!state.installPrompt) return; state.installPrompt.prompt(); await state.installPrompt.userChoice; state.installPrompt = null; el("installButton").classList.add("hidden"); });
   window.addEventListener("online", () => setOffline(false));
   window.addEventListener("offline", () => setOffline(true));
@@ -443,11 +502,11 @@ function bindEvents() {
 
 async function ensureCurrentServiceWorker() {
   if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) return;
-  const build = "sm-owner-shell-v11";
+  const build = "sm-owner-shell-v14";
   const previousBuild = localStorage.getItem("sm-owner-shell-version");
   const hadController = Boolean(navigator.serviceWorker.controller);
   try {
-    const registration = await navigator.serviceWorker.register("service-worker.js?v=11", { updateViaCache: "none" });
+    const registration = await navigator.serviceWorker.register("service-worker.js?v=15", { updateViaCache: "none" });
     await registration.update().catch(() => {});
     const worker = registration.installing || registration.waiting;
     if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });

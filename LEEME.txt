@@ -1,19 +1,38 @@
-SM PROPIETARIO · PWA V1
+SM GANADERO CAMPO - ANDROID Y IPHONE
 
-Esta carpeta contiene solamente la interfaz instalable para iPhone y Android.
-No contiene datos de propiedades, emparejamientos ni claves.
+Esta es una sola aplicación adaptada a ambos tipos de celular.
 
-Publicar todo su contenido en una dirección HTTPS conservando los nombres.
-En iPhone: abrir con Safari > Compartir > Añadir a pantalla de inicio.
+PROPIETARIO
+- Consulta únicamente sus propiedades autorizadas.
+- Recibe actualizaciones .smprop por WhatsApp.
 
-En Android, después de instalar la aplicación:
-- En WhatsApp mantenga presionado el documento y toque Compartir.
-- Elija SM Propietario. La aplicación leerá directamente el archivo.
-- .smpair prepara inicialmente el celular.
-- .smprop muestra una vista previa antes de actualizar el dashboard.
+VETERINARIO
+- Consulta todas sus propiedades autorizadas desde un mismo celular.
+- Registra jornadas y etapas reproductivas sin internet.
+- Lee caravanas electrónicas con el XRS2 emparejado como lector/teclado Bluetooth.
+- Siempre exige Confirmar animal y luego Guardar jornada.
+- Conserva la fecha y hora reales del trabajo.
+- Devuelve el trabajo a la laptop mediante un archivo firmado .smtrabajo.
 
-La búsqueda manual de archivos queda disponible solo como alternativa.
-En iPhone se mantiene la importación mediante el selector de archivos.
+FLUJO INICIAL
+1. En la laptop abre Sincronización con el celular.
+2. Selecciona Veterinario, prepara el celular y crea una actualización .smvet.
+3. En el celular importa primero la clave y después el archivo .smvet.
+4. Abre Registrar para trabajar en campo.
+5. Al terminar abre Enviar a laptop y comparte el .smtrabajo por WhatsApp.
+6. En la laptop abre Sincronización con el celular > Importar .smtrabajo.
+7. Vacía los pendientes del celular solamente después de que la laptop confirme la importación.
 
-No abrir index.html directamente desde Archivos: para instalarse y trabajar
-offline necesita servirse por HTTPS (o localhost durante pruebas técnicas).
+INSTALAR EN ANDROID
+- Abre el sitio en Chrome.
+- En el menú elige Instalar aplicación o Añadir a pantalla principal.
+
+INSTALAR EN IPHONE
+- Abre el sitio en Safari.
+- Toca Compartir > Añadir a pantalla de inicio.
+
+IMPORTANTE SOBRE XR5000
+La conexión directa por Wi-Fi con la XR5000 requiere validar en campo el formato o servicio oficial que entrega el indicador. Esta versión no cambia configuraciones de la balanza ni promete una conexión propietaria no comprobada. Mientras se valida, el XRS2 puede entregar la caravana como teclado Bluetooth y el veterinario confirma cada animal.
+
+SINCRONIZACIÓN AUTOMÁTICA EN LA MISMA RED
+El formato de datos y la protección ya están preparados para esta siguiente etapa. En esta versión piloto el intercambio bidireccional se realiza con .smvet y .smtrabajo, que también funciona cuando no existe internet mediante Archivos, AirDrop u otro medio local.

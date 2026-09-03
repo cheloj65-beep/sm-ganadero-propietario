@@ -1,7 +1,7 @@
 {
-  "name": "SM Ganadero · Propietario",
-  "short_name": "SM Propietario",
-  "description": "Panel seguro de consulta para propietarios ganaderos.",
+  "name": "SM Ganadero · Campo",
+  "short_name": "SM Ganadero",
+  "description": "Consulta del propietario y registro de campo del veterinario, incluso sin internet.",
   "id": "/mobile/",
   "start_url": "./",
   "scope": "./",
@@ -22,12 +22,12 @@
       "files": [
         {
           "name": "files",
-          "accept": [".smpair", ".smprop", ".smvet", "text/plain", "application/json", "application/octet-stream", "application/x-sm-pairing", "application/vnd.smganadero.pairing", "application/vnd.smganadero.owner-update"]
+          "accept": [".smpair", ".smprop", ".smvet", ".smtrabajo", "text/plain", "application/json", "application/octet-stream", "application/x-sm-pairing", "application/vnd.smganadero.pairing", "application/vnd.smganadero.owner-update"]
         }
       ]
     }
   },
   "file_handlers": [
-    { "action": "./?recibir=archivo", "accept": { "text/plain": [".smpair"], "application/json": [".smprop", ".smvet"] } }
+    { "action": "./?recibir=archivo", "accept": { "text/plain": [".smpair"], "application/json": [".smprop", ".smvet", ".smtrabajo"] } }
   ]
 }
