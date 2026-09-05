@@ -1,7 +1,7 @@
 {
   "name": "SM Ganadero · Campo",
   "short_name": "SM Ganadero",
-  "description": "Consulta del propietario y registro de campo del veterinario, incluso sin internet.",
+  "description": "SM Ganadero · Gestión productiva inteligente para propietarios y veterinarios, incluso sin internet.",
   "id": "/mobile/",
   "start_url": "./",
   "scope": "./",

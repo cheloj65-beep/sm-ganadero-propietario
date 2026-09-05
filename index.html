@@ -9,20 +9,24 @@
   <meta name="apple-mobile-web-app-title" content="SM Ganadero">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=15">
+  <link rel="stylesheet" href="app.css?v=18">
   <link rel="stylesheet" href="field.css?v=1">
   <title>SM Ganadero móvil</title>
 </head>
 <body>
+  <div id="appSplash" class="app-splash" aria-hidden="true">
+    <div class="splash-mark">SM</div>
+    <div class="splash-wordmark"><strong>SM GANADERO</strong><span>Gestión productiva inteligente</span><p id="splashVerse"></p><small id="splashVerseReference"></small></div>
+  </div>
   <main id="pairingView" class="pairing-shell">
     <section class="pairing-card">
       <div class="pairing-art" aria-hidden="true">
-        <div class="brand-tag">SM</div>
+        <div class="opening-brand"><div class="brand-tag">SM</div><div class="opening-wordmark"><strong>SM GANADERO</strong><span>Gestión productiva inteligente</span></div></div>
         <svg viewBox="0 0 180 130"><path d="M27 80c7-20 24-31 45-35 9-20 25-31 45-26 14 4 22 15 25 28 14 2 24 11 29 24l-13 3-4 37h-13l-4-32-45 2-7 30H72l-1-31-25 3-5 28H29l2-34-12-6 8-11Zm88-49c-9-3-18 1-24 9 14-1 27 1 38 5-3-7-7-12-14-14Zm-74 26L20 45l3 19-13 7 23 3 8-17Zm101-5 26-8-9 18 13 9-28 1-2-20Z"/></svg>
       </div>
       <div class="pairing-content">
-        <span class="eyebrow">Acceso móvil seguro</span>
-        <h1>Conecta tu propiedad</h1>
+        <span class="eyebrow">SM GANADERO · Acceso móvil seguro</span>
+        <h1>Tu propiedad, siempre contigo</h1>
         <p class="lead">Si recibiste un código largo por WhatsApp, cópialo y toca <strong>Pegar código de WhatsApp</strong>. Esto se realiza una sola vez.</p>
         <label for="pairingTokenInput">Código de emparejamiento</label>
         <textarea id="pairingTokenInput" rows="4" spellcheck="false" placeholder="Pega aquí el código generado en la computadora"></textarea>
@@ -39,7 +43,7 @@
   <main id="dashboardView" class="app hidden">
     <header class="topbar">
       <div class="mini-tag">SM</div>
-      <div class="brand-copy"><strong id="farmTitle">Propiedad</strong><small id="updatedText">Sin actualizar</small></div>
+      <div class="brand-copy"><div class="mobile-wordmark"><b>SM GANADERO</b><em>Gestión productiva inteligente</em></div><strong id="farmTitle">Propiedad</strong><small id="updatedText">Sin actualizar</small></div>
       <button id="syncButton" class="icon-button" type="button" aria-label="Importar actualización"><span>＋</span></button>
       <input id="updateFileInput" type="file" accept=".smprop,.smvet,application/json" hidden>
     </header>
@@ -76,7 +80,7 @@
   <nav id="bottomNav" class="bottom-nav hidden"><a href="#summarySection"><b>R</b>Resumen</a><a href="#managementSection"><b>G</b>Gestión</a><a href="#fieldSection"><b>C</b>Campo</a><a id="fieldNavLink" class="hidden" href="#fieldWorkSection"><b>＋</b>Registrar</a><a href="#settingsSection"><b>⋯</b>Más</a></nav>
   <div id="toast" class="toast hidden" role="status"></div>
   <div id="updatePreview" class="preview-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle"><section class="preview-card"><span class="eyebrow">Actualización recibida</span><h2 id="previewTitle">Revisar antes de guardar</h2><div id="previewContent" class="preview-content"></div><p id="previewError" class="form-error"></p><div class="preview-actions"><button id="cancelUpdateButton" class="secondary-action" type="button">Cancelar</button><button id="confirmUpdateButton" class="primary-action" type="button">Confirmar actualización</button></div></section></div>
-  <script src="app.js?v=15" defer></script>
+  <script src="app.js?v=18" defer></script>
   <script src="field.js?v=1" defer></script>
 </body>
 </html>

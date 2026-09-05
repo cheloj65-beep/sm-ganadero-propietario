@@ -126,7 +126,7 @@
     const animal = local.workCandidate; if (!animal) return;
     if (local.workEntries.some(item => item.animalId === animal.id)) { showToast(`${animal.tag} ya fue confirmado en esta jornada`); return; }
     local.workEntries.push({ entryId: uid(), animalId: animal.id, electronicId: animal.electronicId || "", tag: animal.tag || "", weightKg: numberOrNull(inputValue("fwWeight")), bodyConditionScore: numberOrNull(inputValue("fwBody")), capturedAtUtc: new Date().toISOString(), status: "Confirmado", semenInventoryItemId: null, sireReference: "", notes: inputValue("fwAnimalNotes") });
-    local.workCandidate = null; el("fwScan").value = ""; el("fwWeight").value = ""; el("fwBody").value = ""; el("fwAnimalNotes").value = ""; el("fwCandidate").className = "candidate-card"; el("fwCandidate").textContent = "Animal confirmado. Esperando la siguiente lectura."; el("fwConfirm").disabled = true; renderWorkEntries(); el("fwScan").focus();
+    local.workCandidate = null; el("fwScan").value = ""; el("fwWeight").value = ""; el("fwBody").value = ""; el("fwAnimalNotes").value = ""; el("fwCandidate").className = "candidate-card"; el("fwCandidate").textContent = "Animal confirmado. Todo listo para la siguiente lectura."; el("fwConfirm").disabled = true; renderWorkEntries(); el("fwScan").focus();
   }
 
   function renderWorkEntries() {
@@ -140,7 +140,7 @@
     if (!local.workEntries.length) { showToast("Confirma al menos un animal antes de guardar la jornada"); return; }
     if (!inputValue("fwResponsible")) { showToast("Escribe el veterinario responsable"); el("fwResponsible").focus(); return; }
     const rows = outbox(); rows.push({ recordId: uid(), type: "Jornada", farm: state.activeFarm, productionModule: inputValue("fwModule"), date: inputValue("fwDate"), workType: inputValue("fwType"), troop: inputValue("fwTroop"), responsible: inputValue("fwResponsible"), notes: inputValue("fwNotes"), seasonId: null, stage: "", round: "", animals: local.workEntries, queuedAtUtc: new Date().toISOString() });
-    saveOutbox(rows); local.workEntries = []; removeDraft("jornada"); showToast("Jornada guardada en el celular"); renderWorkPane(); renderSendPane();
+    saveOutbox(rows); local.workEntries = []; removeDraft("jornada"); showToast("Jornada guardada y protegida en este celular"); renderWorkPane(); renderSendPane();
   }
 
   function renderReproductionPane() {
@@ -219,7 +219,7 @@
     const sire = el("frSire"), semenId = stage === "IATF" && sire?.value ? sire.value : null, sireCode = semenId ? sire.selectedOptions[0]?.dataset.code || "" : "";
     if (stage === "IATF" && inputValue("frStatus") === "Inseminada" && !semenId) { showToast("Selecciona el toro o pajuela"); return; }
     local.reproEntries.push({ entryId: uid(), animalId: animal.id, electronicId: animal.electronicId || "", tag: animal.tag || "", weightKg: weight, bodyConditionScore: body, capturedAtUtc: capturedAt(inputValue("frDate"), inputValue("frTime")), status: inputValue("frStatus"), semenInventoryItemId: semenId, sireReference: sireCode, notes: inputValue("frAnimalNotes") });
-    local.reproCandidate = null; el("frScan").value = ""; el("frWeight").value = ""; el("frBody").value = ""; el("frAnimalNotes").value = ""; el("frCandidate").className = "candidate-card"; el("frCandidate").textContent = "Animal confirmado. Esperando la siguiente lectura."; el("frConfirm").disabled = true; renderReproEntries(); el("frScan").focus();
+    local.reproCandidate = null; el("frScan").value = ""; el("frWeight").value = ""; el("frBody").value = ""; el("frAnimalNotes").value = ""; el("frCandidate").className = "candidate-card"; el("frCandidate").textContent = "Animal confirmado. Todo listo para la siguiente lectura."; el("frConfirm").disabled = true; renderReproEntries(); el("frScan").focus();
   }
 
   function renderReproEntries() {
@@ -234,7 +234,7 @@
     if (!inputValue("frSeason")) { showToast("No hay una temporada reproductiva seleccionada"); return; }
     if (!inputValue("frResponsible")) { showToast("Escribe el veterinario responsable"); return; }
     const rows = outbox(); rows.push({ recordId: uid(), type: "Reproducción", farm: state.activeFarm, productionModule: inputValue("frModule"), date: inputValue("frDate"), workType: "Jornada reproductiva", troop: "", responsible: inputValue("frResponsible"), notes: inputValue("frNotes"), seasonId: inputValue("frSeason"), stage: inputValue("frStage"), round: inputValue("frRound"), animals: local.reproEntries, queuedAtUtc: new Date().toISOString() });
-    saveOutbox(rows); local.reproEntries = []; removeDraft("reproduccion"); showToast("Trabajo reproductivo guardado en el celular"); renderReproductionPane(); renderSendPane();
+    saveOutbox(rows); local.reproEntries = []; removeDraft("reproduccion"); showToast("Trabajo reproductivo guardado y protegido"); renderReproductionPane(); renderSendPane();
   }
 
   function bindDraftInputs(kind, ids) {

@@ -9,6 +9,17 @@ const PRODUCT = Object.freeze({
   deviceDatabase: "sm-owner-device.v1"
 });
 
+const OPENING_MESSAGES = Object.freeze([
+  ["Todo lo puedo en Cristo que me fortalece.", "Filipenses 4:13"],
+  ["El Señor es mi pastor; nada me faltará.", "Salmo 23:1"],
+  ["Encomienda al Señor tus obras, y tus pensamientos serán afirmados.", "Proverbios 16:3"],
+  ["Esfuérzate y sé valiente; no temas ni desmayes.", "Josué 1:9"],
+  ["Los que esperan en el Señor renovarán sus fuerzas.", "Isaías 40:31"],
+  ["Todo tiene su tiempo, y todo lo que se quiere debajo del cielo tiene su hora.", "Eclesiastés 3:1"],
+  ["La bendición del Señor es la que enriquece.", "Proverbios 10:22"],
+  ["Fiel es el que prometió.", "Hebreos 10:23"]
+]);
+
 const state = { pairingToken: "", pairing: null, snapshots: [], activeFarm: "", activeModule: "", metric: "births", installPrompt: null, pendingSnapshot: null, pendingSnapshots: [] };
 const el = id => document.getElementById(id);
 const fmt = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 0 });
@@ -152,6 +163,8 @@ function showPairing(message = "") {
 
 function showDashboard() {
   el("pairingView").classList.add("hidden"); el("dashboardView").classList.remove("hidden"); el("bottomNav").classList.remove("hidden");
+  el("dashboardView").classList.remove("brand-enter");
+  requestAnimationFrame(() => el("dashboardView").classList.add("brand-enter"));
   window.setTimeout(() => window.SMGField?.refresh(), 0);
 }
 
@@ -257,7 +270,7 @@ async function pairDevice() {
     state.pairingToken = token; state.pairing = pairing; state.activeFarm = pairing.farms[0] || "";
     await getOrCreateDeviceIdentity();
     saveConfiguration(token);
-    showDashboard(); renderEmptyDashboard(); showToast(`Celular preparado. Importa la primera actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`);
+    showDashboard(); renderEmptyDashboard(); showToast(`Todo listo. Importa la primera actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`);
   } catch (error) { showPairing(error.message || "No se pudo vincular este celular."); }
   finally { setBusy(false); }
 }
@@ -304,13 +317,13 @@ function confirmOwnerUpdate() {
   const updates = state.pendingSnapshots.length ? state.pendingSnapshots : (state.pendingSnapshot ? [state.pendingSnapshot] : []); if (!updates.length) return;
   for (const snapshot of updates) { state.snapshots = state.snapshots.filter(row => row.farm.toLocaleLowerCase("es") !== snapshot.farm.toLocaleLowerCase("es")); state.snapshots.push(snapshot); }
   state.activeFarm = updates[0].farm; state.activeModule = ""; state.pendingSnapshot = null; state.pendingSnapshots = [];
-  saveConfiguration(state.pairingToken); el("updatePreview").classList.add("hidden"); showDashboard(); render(); setOffline(false); showToast("Dashboard actualizado correctamente");
+  saveConfiguration(state.pairingToken); el("updatePreview").classList.add("hidden"); showDashboard(); render(); setOffline(false); showToast("La información de esta propiedad está al día");
 }
 
 function renderEmptyDashboard() {
   el("farmTitle").textContent = state.activeFarm || "Propiedad";
   el("updatedText").textContent = "Celular preparado · sin datos todavía";
-  el("heroMessage").textContent = "Importa el archivo enviado por el veterinario para ver la información de tu propiedad.";
+  el("heroMessage").textContent = "Todo listo. Importa el archivo enviado por el veterinario para ver la información de tu propiedad.";
   el("heroStatus").classList.add("warning"); el("heroStatus").querySelector("span").textContent = `Importa una actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`;
   el("kpiGrid").innerHTML = [kpi("Animales activos", "—", "esperando actualización", "coral"), kpi("Nacimientos", "—", "esperando actualización", "good"), kpi("Ventas netas", "—", "esperando actualización"), kpi("Resultado operativo", "—", "esperando actualización", "navy")].join("");
   el("alertsList").innerHTML = `<div class="panel empty">Toca + para importar el archivo recibido por WhatsApp.</div>`; el("alertCount").textContent = "0 avisos";
@@ -405,7 +418,7 @@ function renderAlerts(rows) {
   el("alertsList").innerHTML = rows.length ? rows.slice(0, 6).map(row => {
     const css = row.severity === "Crítica" ? "critical" : row.severity === "Correcto" ? "correct" : "";
     return `<article class="alert ${css}"><i class="alert-line"></i><div><strong>${h(row.title)}</strong><p>${h(row.detail)}</p></div><span class="tag">${h(row.area)}</span></article>`;
-  }).join("") : `<div class="panel empty">Sin alertas</div>`;
+  }).join("") : `<div class="panel empty">Todo en orden · sin alertas prioritarias</div>`;
 }
 
 const metricDefinition = {
@@ -502,11 +515,11 @@ function bindEvents() {
 
 async function ensureCurrentServiceWorker() {
   if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) return;
-  const build = "sm-owner-shell-v14";
+  const build = "sm-owner-shell-v18-opening-6s";
   const previousBuild = localStorage.getItem("sm-owner-shell-version");
   const hadController = Boolean(navigator.serviceWorker.controller);
   try {
-    const registration = await navigator.serviceWorker.register("service-worker.js?v=15", { updateViaCache: "none" });
+    const registration = await navigator.serviceWorker.register("service-worker.js?v=18", { updateViaCache: "none" });
     await registration.update().catch(() => {});
     const worker = registration.installing || registration.waiting;
     if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
@@ -535,6 +548,10 @@ async function ensureCurrentServiceWorker() {
 
 async function start() {
   document.title = PRODUCT.ownerName; bindEvents();
+  const opening = OPENING_MESSAGES[Math.floor(Math.random() * OPENING_MESSAGES.length)];
+  el("splashVerse").textContent = `“${opening[0]}”`;
+  el("splashVerseReference").textContent = opening[1];
+  window.setTimeout(() => el("appSplash")?.remove(), 6250);
   await ensureCurrentServiceWorker();
   await restore();
   const receivedFile = await receiveSharedFileFromUrl();

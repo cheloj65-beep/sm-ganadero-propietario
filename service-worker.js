@@ -1,7 +1,7 @@
-const CACHE = "sm-owner-shell-v15-field1";
+const CACHE = "sm-owner-shell-v18-opening-6s";
 const SHARE_CACHE = "sm-owner-shared-v1";
 const BASE = new URL("./", self.location).pathname;
-const SHELL = [BASE, `${BASE}app.css?v=15`, `${BASE}field.css?v=1`, `${BASE}app.js?v=15`, `${BASE}field.js?v=1`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
+const SHELL = [BASE, `${BASE}app.css?v=18`, `${BASE}field.css?v=1`, `${BASE}app.js?v=18`, `${BASE}field.js?v=1`, `${BASE}icon.svg`, `${BASE}brahman-opening-v2.png`, `${BASE}manifest.webmanifest`];
 self.addEventListener("message", event => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
