@@ -1,5 +1,16 @@
 SM GANADERO - CONSULTA EN ANDROID Y IPHONE
-Versión móvil de consulta v22 - corrección de vinculaciones del 12/09/2026.
+Versión móvil de consulta v23 - recepción desde WhatsApp del 12/09/2026.
+
+COMPARTIR DESDE WHATSAPP — V23
+- Mantén presionado el mensaje del documento descargado en WhatsApp, toca Compartir y elige SM Ganadero. No necesitas buscar carpetas.
+- Si aparece Documento recibido, toca Continuar en SM Ganadero, revisa la cantidad de animales y confirma.
+- La bandeja Documentos de WhatsApp conserva lo recibido aunque cierres la app, canceles la revisión o falle el guardado. Puedes revisarlo desde allí.
+- La copia temporal se retira solo después de confirmar correctamente, o si eliges Descartar copia. No se borran las consultas guardadas.
+- La app abierta recibe un aviso de la nueva entrega; al reabrir también comprueba los documentos pendientes, sin depender únicamente del enlace de entrada.
+- Si Android entrega solo texto/nombre o un archivo vacío, se muestra un aviso persistente. SM no puede reconstruir un contenido que el teléfono no entregó.
+- Se conserva la confirmación manual y el cifrado por vinculación. Un archivo para otro celular no se incorpora.
+- Se admite un documento por envío, hasta 10 MB, y hasta 10 copias pendientes. No se elimina una copia anterior para hacer lugar.
+- Las pruebas de software y navegador no sustituyen la comprobación de Compartir en el teléfono físico.
 
 ACTUALIZACIÓN V22
 - Distingue las propiedades por su ID y los archivos por su vinculación.

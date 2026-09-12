@@ -21,6 +21,8 @@ const OPENING_MESSAGES = Object.freeze([
 ]);
 
 const state = { pairingToken: "", pairing: null, snapshots: [], recoverySnapshots: [], storedRaw: null, activeFarm: "", activeModule: "", metric: "births", installPrompt: null, pendingSnapshot: null, pendingSnapshots: [], importRevision: 0 };
+const shared = { ready: false, opening: false, rows: [], version: 0, pendingId: "", pairingReceipt: null };
+const SHARED_CACHE = "sm-owner-shared-v1";
 const el = id => document.getElementById(id);
 const fmt = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 0 });
 const fmt1 = new Intl.NumberFormat("es-BO", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -210,6 +212,7 @@ function isNewerUpdate(snapshot) {
 
 function clearPendingUpdate() {
   state.importRevision++; state.pendingSnapshot = null; state.pendingSnapshots = [];
+  shared.pendingId = "";
   el("updatePreview").classList.add("hidden");
 }
 
@@ -285,57 +288,114 @@ function receiveSharedPairingFromUrl() {
   history.replaceState(null, "", location.pathname);
 }
 
+function sharedAddress(id) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "")) throw new Error("La referencia del documento no es válida. Vuelve a compartir su mensaje desde WhatsApp.");
+  return new URL(`./__shared__/${id}`, location.href).href;
+}
+
+function showShareNotice(message) {
+  el("shareNotice").textContent = message;
+  el("sharedInbox").classList.remove("hidden");
+  el("dismissShareNotice").classList.remove("hidden");
+  el("appSplash")?.remove();
+  el("sharedInbox").scrollIntoView?.({ block: "start" });
+}
+
+async function refreshSharedInbox() {
+  if (!("caches" in window)) return [];
+  const version = ++shared.version;
+  try {
+    const cache = await caches.open(SHARED_CACHE), prefix = new URL("./__shared__/", location.href).href;
+    const keys = (await cache.keys()).filter(key => key.url.startsWith(prefix));
+    const rows = [];
+    for (const key of keys) {
+      const id = key.url.slice(prefix.length);
+      if (!/^[0-9a-f-]{36}$/i.test(id)) continue;
+      const response = await cache.match(key); if (!response) continue;
+      let name = response.headers.get("X-SM-File-Name") || "Documento SM";
+      try { name = decodeURIComponent(name); } catch { /* Keep a readable safe-escaped label. */ }
+      rows.push({ id, name, size: Number(response.headers.get("X-SM-File-Size") || 0) });
+    }
+    const noticeResponse = await cache.match(new URL("./__share_notice__", location.href).href);
+    const notice = noticeResponse ? await noticeResponse.text() : "";
+    if (version !== shared.version) return shared.rows;
+    shared.rows = rows;
+    if (rows.length || notice) el("appSplash")?.remove();
+    el("sharedFileList").innerHTML = rows.map(row => `<div class="shared-document"><b>${h(row.name)}</b><small>${row.size > 0 ? `${fmt.format(Math.ceil(row.size / 1024))} KB · ` : ""}Pendiente de revisión</small><div class="shared-document-actions"><button class="primary-action" data-share-review="${h(row.id)}" type="button">Revisar documento</button><button class="secondary-action" data-share-discard="${h(row.id)}" type="button">Descartar copia</button></div></div>`).join("");
+    el("sharedInbox").classList.toggle("hidden", !rows.length && !notice);
+    el("shareNotice").textContent = notice || (rows.length ? "Recibidos desde WhatsApp. Revisar no cambia tus datos: debes confirmar la actualización. Si cancelas, el documento permanece aquí." : "");
+    el("dismissShareNotice").classList.toggle("hidden", !notice);
+    return rows;
+  } catch {
+    showShareNotice("No se pudo revisar la bandeja de WhatsApp. Tus consultas guardadas siguen intactas. No borres los datos de la app.");
+    return [];
+  }
+}
+
+async function clearSharedCopy(id) {
+  const cache = await caches.open(SHARED_CACHE);
+  await cache.delete(sharedAddress(id));
+  await refreshSharedInbox();
+}
+
+async function finishSharedCopy(id) {
+  if (!id) return;
+  try { await clearSharedCopy(id); }
+  catch { showShareNotice("La actualización sí se guardó. No se pudo retirar su copia de la bandeja; puedes descartarla allí sin borrar tus datos."); }
+}
+
+async function openSharedDocument(id) {
+  if (shared.opening || state.pendingSnapshots.length) return;
+  shared.opening = true;
+  try {
+    const cache = await caches.open(SHARED_CACHE), response = await cache.match(sharedAddress(id));
+    if (!response) throw new Error("No se encontró el documento recibido. Mantén presionado su mensaje en WhatsApp y vuelve a compartirlo con SM Ganadero.");
+    let fileName = response.headers.get("X-SM-File-Name") || "actualizacion.smprop";
+    try { fileName = decodeURIComponent(fileName); } catch { /* Preserve the original label. */ }
+    const blob = await response.blob();
+    if (!blob.size || blob.size > 10 * 1024 * 1024) throw new Error("El documento está vacío o supera 10 MB. La consulta anterior no cambió.");
+    const text = await blob.text(), token = extractPairingToken(text), lowerName = fileName.toLocaleLowerCase("es");
+    el("appSplash")?.remove();
+    if (lowerName.endsWith(".smpair") || token) {
+      if (!token) throw new Error("El archivo .smpair está incompleto o no es válido.");
+      shared.pairingReceipt = { id, token };
+      el("pairingTokenInput").value = token; el("pairingFileName").textContent = fileName;
+      showPairing("Código recibido desde WhatsApp. Revisa y toca Preparar este celular para confirmar la vinculación.");
+    } else {
+      await importOwnerUpdate(new File([blob], /\.(smprop|smvet)$/.test(lowerName) ? fileName : "actualizacion.smprop", { type: blob.type || "application/json" }), id);
+    }
+  } catch (error) {
+    showShareNotice(error.message || "No se pudo revisar el documento. Su copia no se ha descartado.");
+  } finally { shared.opening = false; }
+}
+
 async function receiveSharedFileFromUrl() {
   const params = new URLSearchParams(location.search);
   const receiveMode = params.get("recibir");
   const id = params.get("id");
   if (receiveMode === "archivo-grande") {
-    showToast("El archivo recibido supera el límite de 10 MB.");
+    showShareNotice("El archivo recibido supera el límite de 10 MB.");
     history.replaceState(null, "", location.pathname);
     return true;
   }
   if (receiveMode === "sin-archivo" || receiveMode === "entrega-invalida") {
     const detail = params.get("detalle");
     const message = detail || "WhatsApp abrió SM Ganadero, pero el teléfono no entregó el contenido del documento. Vuelve a WhatsApp, mantén presionado el archivo, toca Compartir y elige SM Ganadero.";
-    if (!state.pairing) showPairing(message);
-    else window.alert(message);
+    showShareNotice(message);
     history.replaceState(null, "", location.pathname);
     return true;
   }
-  if (receiveMode !== "archivo" || !id) return false;
-
-  const sharedUrl = `./__shared__/${encodeURIComponent(id)}`;
-  try {
-    const response = await fetch(sharedUrl, { cache: "no-store" });
-    if (!response.ok) throw new Error("Android no pudo entregar el documento. Compártelo nuevamente desde WhatsApp.");
-    const encodedName = response.headers.get("X-SM-File-Name") || "actualizacion.smprop";
-    let fileName = "actualizacion.smprop";
-    try { fileName = decodeURIComponent(encodedName); } catch { fileName = encodedName; }
-    const blob = await response.blob();
-    const text = await blob.text();
-    const lowerName = fileName.toLocaleLowerCase("es");
-    const pairingToken = extractPairingToken(text);
-
-    if (lowerName.endsWith(".smpair") || pairingToken) {
-      if (!pairingToken) throw new Error("El archivo .smpair está incompleto o no es válido.");
-      el("pairingTokenInput").value = pairingToken;
-      el("pairingFileName").textContent = fileName;
-      if (!state.pairing) {
-        await pairDevice();
-      } else {
-        showPairing("Archivo recibido desde WhatsApp. Revisa y toca Preparar este celular para reemplazar la vinculación actual.");
-      }
-    } else {
-      const updateFile = new File([blob], (lowerName.endsWith(".smprop") || lowerName.endsWith(".smvet")) ? fileName : "actualizacion.smprop", { type: blob.type || "application/json" });
-      await importOwnerUpdate(updateFile);
-    }
-  } catch (error) {
-    if (!state.pairing) showPairing(error.message || "No se pudo leer el documento recibido.");
-    else showToast(error.message || "No se pudo leer el documento recibido.");
-  } finally {
-    fetch(sharedUrl, { method: "DELETE" }).catch(() => {});
+  if (receiveMode === "whatsapp" || (!receiveMode && (params.has("text") || params.has("title")))) {
+    const token = extractPairingToken([params.get("text"), params.get("title"), params.get("url")].filter(Boolean).join(" "));
+    if (token) { el("pairingTokenInput").value = token; showPairing("Código recibido. Revisa y toca Preparar este celular para confirmar la vinculación."); }
+    else showShareNotice("WhatsApp abrió SM Ganadero, pero solo llegó texto o el nombre del documento. Mantén presionado el mensaje del documento descargado en WhatsApp (sin abrirlo), toca Compartir y elige SM Ganadero. No se cambiaron tus datos.");
     history.replaceState(null, "", location.pathname);
+    return true;
   }
+  if (receiveMode !== "archivo") return false;
+  if (!id) showShareNotice("SM Ganadero se abrió sin el contenido del documento. Vuelve a WhatsApp, mantén presionado su mensaje y compártelo sin abrirlo primero.");
+  else await openSharedDocument(id);
+  history.replaceState(null, "", location.pathname);
   return true;
 }
 
@@ -353,11 +413,12 @@ async function pairDevice() {
     saveConfiguration(token, { pairingToken: token, pairing, snapshots, recoverySnapshots: samePairing ? state.recoverySnapshots : keepRecovery(state.snapshots), activeFarm: samePairing ? state.activeFarm : pairing.farms[0] || "", activeModule: samePairing ? state.activeModule : "" });
     showDashboard(); if (snapshots.length) render(); else renderEmptyDashboard();
     showToast(snapshots.length ? "La vinculación actual se conserva" : `Todo listo. Importa la primera actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`);
+    if (shared.pairingReceipt?.token === token) { const receipt = shared.pairingReceipt; shared.pairingReceipt = null; await finishSharedCopy(receipt.id); }
   } catch (error) { showPairing(error.message || "No se pudo vincular este celular."); }
   finally { setBusy(false); }
 }
 
-async function importOwnerUpdate(file) {
+async function importOwnerUpdate(file, sharedId = "") {
   clearPendingUpdate();
   const revision = state.importRevision, pairing = state.pairing;
   try {
@@ -386,11 +447,13 @@ async function importOwnerUpdate(file) {
     }
     if (!snapshots.length) throw new Error("Esta actualización ya fue importada o es anterior a la guardada.");
     state.pendingSnapshots = snapshots; state.pendingSnapshot = snapshots[0];
+    shared.pendingId = sharedId;
     showUpdatePreview(snapshots[0], snapshots.length);
   } catch (error) {
     if (revision !== state.importRevision) return;
     const message = error?.message || "No se pudo abrir la actualización.";
     window.alert(message);
+    if (sharedId) showShareNotice(`${message} El documento sigue en la bandeja de WhatsApp de SM Ganadero; no necesitas buscarlo en carpetas.`);
     showToast("No se importó el documento. Revisa el mensaje mostrado.");
   } finally { if (revision === state.importRevision) el("updateFileInput").value = ""; }
 }
@@ -415,8 +478,10 @@ function confirmOwnerUpdate() {
     const selected = updates.find(row => previous && (sameFarmSnapshot(row, previous) || row.farm === previous.farm)) || updates[0];
     saveConfiguration(state.pairingToken, { snapshots, recoverySnapshots: keepRecovery(legacy), activeFarm: farmKey(selected), activeModule: "" });
   } catch (error) { el("previewError").textContent = error.message || "No se pudo guardar la actualización."; return; }
+  const receivedId = shared.pendingId;
   clearPendingUpdate(); showDashboard(); render(); setOffline(!navigator.onLine);
   showToast("Actualización guardada en este celular");
+  void finishSharedCopy(receivedId);
 }
 
 function renderEmptyDashboard() {
@@ -604,13 +669,35 @@ async function restore() {
 }
 
 function bindEvents() {
+  el("sharedFileList")?.addEventListener("click", async event => {
+    const review = event.target.closest("[data-share-review]");
+    if (review) { await openSharedDocument(review.dataset.shareReview); return; }
+    const discard = event.target.closest("[data-share-discard]");
+    if (!discard || shared.opening) return;
+    const id = discard.dataset.shareDiscard;
+    if (!window.confirm("¿Descartar esta copia recibida de WhatsApp? No se borrarán animales ni consultas guardadas. Puedes volver a compartir el documento original.")) return;
+    try { if (shared.pendingId === id) clearPendingUpdate(); if (shared.pairingReceipt?.id === id) shared.pairingReceipt = null; await clearSharedCopy(id); }
+    catch { showShareNotice("No se pudo descartar la copia recibida. Tus consultas no cambiaron."); }
+  });
+  el("dismissShareNotice")?.addEventListener("click", async () => {
+    try { const cache = await caches.open(SHARED_CACHE); await cache.delete(new URL("./__share_notice__", location.href).href); await refreshSharedInbox(); }
+    catch { showShareNotice("No se pudo cerrar el aviso. Tus consultas no cambiaron."); }
+  });
+  window.addEventListener("focus", () => { if (shared.ready) void refreshSharedInbox(); });
+  document.addEventListener?.("visibilitychange", () => { if (shared.ready && !document.hidden) void refreshSharedInbox(); });
+  navigator.serviceWorker?.addEventListener("message", async event => {
+    if (!shared.ready || event.data?.type !== "SM_SHARED_RECEIVED") return;
+    const rows = await refreshSharedInbox();
+    if (!document.hidden && rows.some(row => row.id === event.data.id) && !state.pendingSnapshots.length) await openSharedDocument(event.data.id);
+    else if (el("shareNotice").textContent) { el("appSplash")?.remove(); el("sharedInbox").scrollIntoView?.({ block: "start" }); }
+  });
   el("pairButton").addEventListener("click", pairDevice);
   el("pastePairingButton").addEventListener("click", pastePairingFromClipboard);
   el("pairingFileInput").addEventListener("change", async event => { const file = event.target.files[0]; if (!file) return; el("pairingFileName").textContent = file.name; el("pairingTokenInput").value = (await file.text()).trim(); });
   el("syncButton").addEventListener("click", () => el("updateFileInput").click());
   el("importButton").addEventListener("click", () => el("updateFileInput").click());
   el("updateFileInput").addEventListener("change", event => importOwnerUpdate(event.target.files[0]));
-  el("cancelUpdateButton").addEventListener("click", clearPendingUpdate);
+  el("cancelUpdateButton").addEventListener("click", () => { const id = shared.pendingId; clearPendingUpdate(); if (id) { void refreshSharedInbox(); showToast("Documento conservado en la bandeja de WhatsApp para revisarlo después"); } });
   el("confirmUpdateButton").addEventListener("click", confirmOwnerUpdate);
   el("snapshotRecoveryDownload")?.addEventListener("click", downloadSnapshotRecovery);
   el("farmSelect").addEventListener("change", event => { try { saveConfiguration(state.pairingToken, { activeFarm: event.target.value, activeModule: "" }); } catch (error) { showToast(error.message); } render(); });
@@ -641,11 +728,11 @@ function bindEvents() {
 
 async function ensureCurrentServiceWorker() {
   if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) return;
-  const build = "sm-owner-shell-v22-vinculacion";
+  const build = "sm-owner-shell-v23-whatsapp";
   const previousBuild = localStorage.getItem("sm-owner-shell-version");
   const hadController = Boolean(navigator.serviceWorker.controller);
   try {
-    const registration = await navigator.serviceWorker.register("service-worker.js?v=22", { updateViaCache: "none" });
+    const registration = await navigator.serviceWorker.register("service-worker.js?v=23", { updateViaCache: "none" });
     await registration.update().catch(() => {});
     const worker = registration.installing || registration.waiting;
     if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
@@ -680,8 +767,11 @@ async function start() {
   window.setTimeout(() => el("appSplash")?.remove(), 6250);
   await ensureCurrentServiceWorker();
   await restore();
+  const rows = await refreshSharedInbox();
   const receivedFile = await receiveSharedFileFromUrl();
   if (!receivedFile && !state.pairing) receiveSharedPairingFromUrl();
+  if (!receivedFile && rows.length === 1 && !state.pendingSnapshots.length) await openSharedDocument(rows[0].id);
+  shared.ready = true;
 }
 
 start();

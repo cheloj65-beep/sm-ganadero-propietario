@@ -1,7 +1,8 @@
-const CACHE = "sm-owner-shell-v22-vinculacion";
+const CACHE = "sm-owner-shell-v23-whatsapp";
 const SHARE_CACHE = "sm-owner-shared-v1";
+let shareQueue = Promise.resolve();
 const BASE = new URL("./", self.location).pathname;
-const SHELL = [BASE, `${BASE}app.css?v=22`, `${BASE}field.css?v=2`, `${BASE}app.js?v=22`, `${BASE}field.js?v=21`, `${BASE}icon.svg`, `${BASE}brahman-opening-v2.png`, `${BASE}manifest.webmanifest`];
+const SHELL = [BASE, `${BASE}app.css?v=23`, `${BASE}field.css?v=2`, `${BASE}app.js?v=23`, `${BASE}field.js?v=21`, `${BASE}icon.svg`, `${BASE}brahman-opening-v2.png`, `${BASE}manifest.webmanifest`];
 self.addEventListener("message", event => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
@@ -14,46 +15,67 @@ self.addEventListener("activate", event => event.waitUntil(Promise.all([
   self.clients.claim()
 ])));
 
+async function notifyShared(id = "") {
+  try {
+    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of clients) if (client.url.startsWith(self.registration.scope)) client.postMessage({ type: "SM_SHARED_RECEIVED", id });
+  } catch { /* The durable inbox is also checked on reopening/focus. */ }
+}
+
+async function shareFailure(message) {
+  try {
+    const cache = await caches.open(SHARE_CACHE);
+    await cache.put(new URL("__share_notice__", self.registration.scope).href, new Response(message, { headers: { "Content-Type": "text/plain;charset=utf-8" } }));
+    await notifyShared();
+  } catch { /* The landing still explains the failure if storage is unavailable. */ }
+  return sharedLanding("", "", message);
+}
+
 async function receiveSharedContent(request) {
   let data;
   try {
     data = await request.formData();
   } catch {
-    return sharedLanding("", "", "Android no pudo entregar el contenido del documento.");
+    return shareFailure("Android no pudo entregar el contenido del documento. Tus consultas no cambiaron.");
   }
 
   const values = [];
   for (const [field, item] of data.entries()) {
     if (item && typeof item === "object" && typeof item.arrayBuffer === "function") values.push({ field, item });
   }
-  const received = values.find(entry => entry.item.size > 0);
-  const file = received?.item;
+  if (values.filter(entry => entry.item.size > 0).length > 1) return shareFailure("Comparte un solo documento SM a la vez. No se importó ningún archivo.");
+  let received = values.find(entry => entry.item.size > 0);
+  let file = received?.item;
   if (!file) {
-    const sharedText = [data.get("title"), data.get("text"), data.get("url")].filter(Boolean).join(" ");
-    const query = new URLSearchParams(sharedText
-      ? { recibir: "whatsapp", text: sharedText }
-      : { recibir: "sin-archivo", campos: [...data.keys()].join(",") || "ninguno" });
-    if (sharedText) return Response.redirect(new URL(`?${query}`, self.registration.scope).href, 303);
-    return sharedLanding("", "", "WhatsApp abrió SM Ganadero, pero no entregó el documento.");
+    const sharedText = [data.get("title"), data.get("text"), data.get("url")].filter(item => typeof item === "string").join(" ");
+    const token = sharedText.match(/CGP1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/)?.[0];
+    if (!token || token.length > 65536) return shareFailure("WhatsApp abrió SM Ganadero, pero entregó solo texto, el nombre o un archivo vacío. No llegó el contenido y no se actualizaron tus datos. En WhatsApp espera a que el documento termine de descargarse, mantén presionado su mensaje (sin abrirlo), toca Compartir y elige SM Ganadero.");
+    file = new File([token], "vinculacion.smpair", { type: "text/plain" });
+    received = { field: "text", item: file };
   }
 
   if (file.size > 10 * 1024 * 1024) {
-    return sharedLanding("", "", "El archivo supera el límite de 10 MB.");
+    return shareFailure("El archivo supera el límite de 10 MB. No se importó ni se cambiaron tus consultas.");
   }
 
   const id = crypto.randomUUID();
   const sharedUrl = new URL(`__shared__/${id}`, self.registration.scope).href;
   const name = typeof file.name === "string" && file.name.trim() ? file.name.trim() : "actualizacion.smprop";
   const cache = await caches.open(SHARE_CACHE);
+  const pending = (await cache.keys()).filter(key => new URL(key.url).pathname.startsWith(`${BASE}__shared__/`));
+  if (pending.length >= 10) return shareFailure("Hay 10 documentos pendientes en SM Ganadero. Revisa o descarta uno dentro de la app y vuelve a compartir. Los documentos anteriores siguen conservados.");
   const bytes = await file.arrayBuffer();
   await cache.put(sharedUrl, new Response(bytes, {
     headers: {
       "Content-Type": file.type || "application/octet-stream",
       "X-SM-File-Name": encodeURIComponent(name),
       "X-SM-Share-Field": encodeURIComponent(received.field || "files"),
-      "X-SM-File-Size": String(file.size)
+      "X-SM-File-Size": String(file.size),
+      "X-SM-Received-At": new Date().toISOString()
     }
   }));
+  await cache.delete(new URL("__share_notice__", self.registration.scope).href);
+  await notifyShared(id);
   return sharedLanding(id, name);
 }
 
@@ -75,7 +97,9 @@ self.addEventListener("fetch", event => {
   const sharedPrefix = `${BASE}__shared__/`;
 
   if (event.request.method === "POST" && url.pathname === shareAction) {
-    event.respondWith(receiveSharedContent(event.request).catch(() => sharedLanding("", "", "Se produjo un error al recibir el documento desde WhatsApp.")));
+    const delivery = shareQueue.then(() => receiveSharedContent(event.request)).catch(() => shareFailure("No se pudo conservar el documento recibido. Tus consultas no cambiaron. Deja el documento en WhatsApp y vuelve a compartir cuando haya espacio disponible."));
+    shareQueue = delivery.then(() => undefined, () => undefined);
+    event.respondWith(delivery);
     return;
   }
 

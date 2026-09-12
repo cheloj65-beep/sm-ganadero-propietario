@@ -30,3 +30,6 @@
 .preview-content{min-height:0;overflow-y:auto}
 .preview-actions{flex-shrink:0}
 #previewError{max-height:22vh;overflow-y:auto;flex-shrink:0}
+.shared-inbox{max-width:530px;margin:12px auto;padding:16px;background:#fff8e8;border:1px solid #dfb767;border-radius:16px;color:var(--navy);overflow-wrap:anywhere}
+.shared-inbox>strong{font-size:16px}.shared-inbox p{margin:8px 0;line-height:1.5}.shared-document{border-top:1px solid #dfb76766;padding:10px 0}.shared-document small{display:block;color:var(--muted)}.shared-document-actions{display:flex;gap:8px;margin-top:8px}.shared-document-actions button{flex:1;min-height:44px;margin:0}.shared-inbox>button{min-height:44px}
+@media(max-width:560px){.shared-inbox{margin:10px 12px}}
