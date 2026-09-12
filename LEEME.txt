@@ -1,38 +1,38 @@
-SM GANADERO CAMPO - ANDROID Y IPHONE
+SM GANADERO - CONSULTA EN ANDROID Y IPHONE
+Versión móvil de consulta v21 - decisión aprobada el 12/09/2026.
 
-Esta es una sola aplicación adaptada a ambos tipos de celular.
+La computadora es el único lugar de registro ganadero.
+La integración con bastón y balanza permanece en la PC.
 
 PROPIETARIO
-- Consulta únicamente sus propiedades autorizadas.
-- Recibe actualizaciones .smprop por WhatsApp.
+- Consulta sus propiedades autorizadas.
+- Recibe actualizaciones cifradas .smprop desde la PC.
 
 VETERINARIO
-- Consulta todas sus propiedades autorizadas desde un mismo celular.
-- Registra jornadas y etapas reproductivas sin internet.
-- Lee caravanas electrónicas con el XRS2 emparejado como lector/teclado Bluetooth.
-- Siempre exige Confirmar animal y luego Guardar jornada.
-- Conserva la fecha y hora reales del trabajo.
-- Devuelve el trabajo a la laptop mediante un archivo firmado .smtrabajo.
+- Consulta sus propiedades autorizadas desde un mismo celular.
+- Recibe actualizaciones cifradas .smvet desde la PC.
+- No registra ni devuelve jornadas o reproducción desde el teléfono.
 
-FLUJO INICIAL
-1. En la laptop abre Sincronización con el celular.
-2. Selecciona Veterinario, prepara el celular y crea una actualización .smvet.
-3. En el celular importa primero la clave y después el archivo .smvet.
-4. Abre Registrar para trabajar en campo.
-5. Al terminar abre Enviar a laptop y comparte el .smtrabajo por WhatsApp.
-6. En la laptop abre Sincronización con el celular > Importar .smtrabajo.
-7. Vacía los pendientes del celular solamente después de que la laptop confirme la importación.
+FLUJO
+1. En la laptop abre las opciones del celular y prepara una autorización individual.
+2. Crea la actualización para el celular de destino: .smprop o .smvet.
+3. Envía el archivo como documento por WhatsApp u otro medio privado.
+4. En el celular importa la clave de emparejamiento si todavía no está preparado.
+5. Abre la actualización, revisa y confirma antes de sustituir la información de consulta.
+6. Comprueba la fecha de la última actualización. Estar conectado a Internet no significa que los datos estén actualizados en vivo.
 
-INSTALAR EN ANDROID
-- Abre el sitio en Chrome.
-- En el menú elige Instalar aplicación o Añadir a pantalla principal.
+TRABAJOS ANTERIORES
+- Los trabajos y borradores antiguos se conservan, incluso si su contenido está incompleto.
+- Si existen, aparece Guardar copia para revisión.
+- La copia JSON no incluye claves de acceso; contiene información ganadera y debe guardarse en privado.
+- Esa copia NO es una actualización y NO se incorpora automáticamente al inventario.
+- Los archivos .smtrabajo anteriores tampoco se importan en esta versión de la PC.
+- No borres almacenamiento, no desinstales ni cambies de origen antes de revisar los pendientes. Si hay pendientes, la app impide desvincular para protegerlos.
 
-INSTALAR EN IPHONE
-- Abre el sitio en Safari.
-- Toca Compartir > Añadir a pantalla de inicio.
+DISPONIBILIDAD
+Este paquete debe alojarse como app web en un origen HTTPS autorizado; el ZIP no instala por sí solo la app en el celular. Prepararlo localmente no actualiza una app ya instalada. Antes de publicar en otro origen, conserva los datos pendientes del origen anterior.
 
-IMPORTANTE SOBRE XR5000
-La conexión directa por Wi-Fi con la XR5000 requiere validar en campo el formato o servicio oficial que entrega el indicador. Esta versión no cambia configuraciones de la balanza ni promete una conexión propietaria no comprobada. Mientras se valida, el XRS2 puede entregar la caravana como teclado Bluetooth y el veterinario confirma cada animal.
-
-SINCRONIZACIÓN AUTOMÁTICA EN LA MISMA RED
-El formato de datos y la protección ya están preparados para esta siguiente etapa. En esta versión piloto el intercambio bidireccional se realiza con .smvet y .smtrabajo, que también funciona cuando no existe internet mediante Archivos, AirDrop u otro medio local.
+ALCANCE
+Se mantiene la consulta de actualizaciones descargadas sin Internet.
+No hay captura de registros móviles, conexión directa a bastón/balanza desde el celular ni sincronización automática PC-celular por estar en la misma red.
+La validación con Android e iPhone físicos continúa pendiente.

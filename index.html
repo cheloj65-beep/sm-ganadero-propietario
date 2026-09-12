@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="SM Ganadero">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=18">
-  <link rel="stylesheet" href="field.css?v=1">
+  <link rel="stylesheet" href="app.css?v=19">
+  <link rel="stylesheet" href="field.css?v=2">
   <title>SM Ganadero móvil</title>
 </head>
 <body>
@@ -28,6 +28,7 @@
         <span class="eyebrow">SM GANADERO · Acceso móvil seguro</span>
         <h1>Tu propiedad, siempre contigo</h1>
         <p class="lead">Si recibiste un código largo por WhatsApp, cópialo y toca <strong>Pegar código de WhatsApp</strong>. Esto se realiza una sola vez.</p>
+        <section id="legacyPairingSection" class="content-section hidden"><div class="panel"><h3>Trabajos anteriores conservados</h3><p id="legacyPairingStatus"></p><button id="legacyPairingDownload" class="secondary-action" type="button">Guardar copia para revisión</button></div></section>
         <label for="pairingTokenInput">Código de emparejamiento</label>
         <textarea id="pairingTokenInput" rows="4" spellcheck="false" placeholder="Pega aquí el código generado en la computadora"></textarea>
         <button id="pastePairingButton" class="secondary-action paste-action" type="button">Pegar código de WhatsApp</button>
@@ -51,7 +52,7 @@
     <section id="summarySection" class="hero">
       <span id="heroEyebrow" class="eyebrow">Panel del propietario</span>
       <h1 id="heroTitle">Tu propiedad, clara de un vistazo</h1>
-      <p id="heroMessage">Información productiva y económica consolidada.</p>
+      <p id="heroMessage">Información enviada desde la PC. Solo consulta; no se registra trabajo en el celular.</p>
       <div id="heroStatus" class="status-pill"><i></i><span>Esperando actualización</span></div>
       <svg class="hero-cow" viewBox="0 0 180 130" aria-hidden="true"><path d="M27 80c7-20 24-31 45-35 9-20 25-31 45-26 14 4 22 15 25 28 14 2 24 11 29 24l-13 3-4 37h-13l-4-32-45 2-7 30H72l-1-31-25 3-5 28H29l2-34-12-6 8-11Zm88-49c-9-3-18 1-24 9 14-1 27 1 38 5-3-7-7-12-14-14Zm-74 26L20 45l3 19-13 7 23 3 8-17Zm101-5 26-8-9 18 13 9-28 1-2-20Z"/></svg>
     </section>
@@ -63,24 +64,14 @@
     <section id="managementSection" class="content-section"><div class="section-head"><div><h2>Gestión</h2><p>Reproducción y economía en una misma lectura</p></div></div><div id="managementGrid" class="management-grid"></div><div id="managementKpis" class="kpi-grid management-kpis"></div></section>
     <section id="fieldSection" class="content-section"><div class="section-head"><div><h2>Campo y potreros</h2><p>Ocupación frente a capacidad estimada</p></div></div><div id="paddockList"></div><div class="section-head inventory-head"><div><h2>Inventario</h2><p>Distribución por categoría</p></div></div><div id="categoryList" class="panel"></div></section>
     <section id="workSection" class="content-section"><div class="section-head"><div><h2>Trabajos recientes</h2><p>Seguimiento de las jornadas realizadas</p></div></div><div id="workList" class="timeline"></div></section>
-    <section id="fieldWorkSection" class="content-section field-work hidden">
-      <div class="section-head"><div><span class="eyebrow">Modo veterinario</span><h2>Trabajo de campo</h2><p>Confirma cada animal y continúa aunque no haya internet.</p></div><span id="fieldPendingChip" class="count-chip">0 pendientes</span></div>
-      <div class="field-tabs" role="tablist">
-        <button type="button" class="active" data-field-tab="jornada">Jornada</button>
-        <button type="button" data-field-tab="reproduccion">Reproducción</button>
-        <button type="button" data-field-tab="envio">Enviar a laptop</button>
-      </div>
-      <div id="fieldJornadaPane" class="field-pane"></div>
-      <div id="fieldReproductionPane" class="field-pane hidden"></div>
-      <div id="fieldSendPane" class="field-pane hidden"></div>
-    </section>
-    <section id="settingsSection" class="content-section settings"><div class="section-head"><div><h2>Este celular</h2><p>Acceso seguro de consulta</p></div></div><div class="panel"><p id="pairingInfo"></p><button id="importButton" class="primary-action compact-action" type="button">Importar actualización .smprop / .smvet</button><button id="installButton" class="secondary-action hidden" type="button">Instalar aplicación</button><div id="iosInstallHelp" class="ios-help hidden"><strong>Instalar en iPhone</strong><span>En Safari toca Compartir y luego “Añadir a pantalla de inicio”.</span></div><button id="disconnectButton" class="danger-action" type="button">Desvincular celular</button><small>Al desvincular se eliminan de este dispositivo la clave y los dashboards guardados.</small></div></section>
+    <section id="legacyWorkSection" class="content-section hidden"><div class="panel"><h3>Trabajos anteriores conservados</h3><p id="legacyWorkStatus"></p><button id="legacyWorkDownload" class="secondary-action" type="button">Guardar copia para revisión</button></div></section>
+    <section id="settingsSection" class="content-section settings"><div class="section-head"><div><h2>Este celular</h2><p>Solo consulta · los registros se realizan en la PC</p></div></div><div class="panel"><p id="pairingInfo"></p><button id="importButton" class="primary-action compact-action" type="button">Importar actualización .smprop / .smvet</button><button id="installButton" class="secondary-action hidden" type="button">Instalar aplicación</button><div id="iosInstallHelp" class="ios-help hidden"><strong>Instalar en iPhone</strong><span>En Safari toca Compartir y luego “Añadir a pantalla de inicio”.</span></div><button id="disconnectButton" class="danger-action" type="button">Desvincular celular</button><small>Al desvincular se eliminan de este dispositivo la clave y los dashboards guardados.</small></div></section>
     <footer id="mobileFooter">SM Ganadero · Una solución de Calivet Bolivia · Información protegida</footer>
   </main>
-  <nav id="bottomNav" class="bottom-nav hidden"><a href="#summarySection"><b>R</b>Resumen</a><a href="#managementSection"><b>G</b>Gestión</a><a href="#fieldSection"><b>C</b>Campo</a><a id="fieldNavLink" class="hidden" href="#fieldWorkSection"><b>＋</b>Registrar</a><a href="#settingsSection"><b>⋯</b>Más</a></nav>
+  <nav id="bottomNav" class="bottom-nav hidden"><a href="#summarySection"><b>R</b>Resumen</a><a href="#managementSection"><b>G</b>Gestión</a><a href="#fieldSection"><b>C</b>Campo</a><a href="#settingsSection"><b>⋯</b>Más</a></nav>
   <div id="toast" class="toast hidden" role="status"></div>
   <div id="updatePreview" class="preview-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle"><section class="preview-card"><span class="eyebrow">Actualización recibida</span><h2 id="previewTitle">Revisar antes de guardar</h2><div id="previewContent" class="preview-content"></div><p id="previewError" class="form-error"></p><div class="preview-actions"><button id="cancelUpdateButton" class="secondary-action" type="button">Cancelar</button><button id="confirmUpdateButton" class="primary-action" type="button">Confirmar actualización</button></div></section></div>
-  <script src="app.js?v=18" defer></script>
-  <script src="field.js?v=1" defer></script>
+  <script src="app.js?v=21" defer></script>
+  <script src="field.js?v=21" defer></script>
 </body>
 </html>

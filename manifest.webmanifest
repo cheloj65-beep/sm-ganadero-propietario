@@ -1,5 +1,5 @@
 {
-  "name": "SM Ganadero · Campo",
+  "name": "SM Ganadero · Consulta",
   "short_name": "SM Ganadero",
   "description": "SM Ganadero · Gestión productiva inteligente para propietarios y veterinarios, incluso sin internet.",
   "id": "/mobile/",
@@ -22,7 +22,7 @@
       "files": [
         {
           "name": "files",
-          "accept": [".smpair", ".smprop", ".smvet", ".smtrabajo", "text/plain", "application/json", "application/octet-stream", "application/x-sm-pairing", "application/vnd.smganadero.pairing", "application/vnd.smganadero.owner-update"]
+          "accept": [".smpair", ".smprop", ".smvet", "text/plain", "application/json", "application/octet-stream", "application/x-sm-pairing", "application/vnd.smganadero.pairing", "application/vnd.smganadero.owner-update"]
         }
       ]
     }

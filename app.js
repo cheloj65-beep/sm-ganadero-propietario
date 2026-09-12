@@ -2,7 +2,7 @@
 
 const PRODUCT = Object.freeze({
   name: "SM Ganadero",
-  ownerName: "SM Ganadero · Campo",
+  ownerName: "SM Ganadero · Consulta",
   pairingContract: "sm-owner-pairing.v1",
   syncContract: "sm-owner-sync.v1",
   storageKey: "sm-owner-mobile.v1",
@@ -130,8 +130,6 @@ async function parsePairingToken(token, enforceExpiry = true) {
 async function decryptEnvelope(envelope, pairing) {
   if (envelope.contractVersion !== PRODUCT.syncContract || compactGuid(envelope.pairingId) !== compactGuid(pairing.pairingId))
     throw new Error("La actualización pertenece a otra clave de propietario.");
-  if (!pairing.farms.some(farm => farm.toLocaleLowerCase("es") === envelope.farm.toLocaleLowerCase("es")))
-    throw new Error("La propiedad no está autorizada para este celular.");
   if (new Date(envelope.expiresAtUtc).getTime() < Date.now()) throw new Error("La actualización disponible venció.");
   if (new Date(envelope.createdAtUtc).getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error("La fecha de la actualización no es válida.");
   const associated = `${PRODUCT.syncContract}|${compactGuid(envelope.pairingId)}|${envelope.sequence}|${envelope.farm}|${dotnetRoundtrip(envelope.createdAtUtc)}|${dotnetRoundtrip(envelope.expiresAtUtc)}`;
@@ -141,10 +139,22 @@ async function decryptEnvelope(envelope, pairing) {
     const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64Url(envelope.nonce), additionalData: new TextEncoder().encode(associated), tagLength: 128 }, key, encrypted);
     const snapshot = JSON.parse(new TextDecoder().decode(plaintext));
     if (snapshot.contractVersion !== "sm-owner-dashboard.v1" || snapshot.farm !== envelope.farm || !snapshot.summary || !Array.isArray(snapshot.monthlyTrend)) throw new Error();
+    const allowed = pairing.farms.map(farm => farm.toLocaleLowerCase("es"));
+    const authenticatedNames = [snapshot.farm, ...(validFarmId(snapshot.farmId) && Array.isArray(snapshot.previousFarmNames) ? snapshot.previousFarmNames : [])];
+    if (!authenticatedNames.some(name => allowed.includes(String(name).toLocaleLowerCase("es")))) throw new Error();
     return { ...snapshot, sequence: envelope.sequence };
   } catch {
     throw new Error("La actualización fue alterada o no corresponde a este celular.");
   }
+}
+
+function validFarmId(value) { return /^[0-9a-f]{32}$/i.test(compactGuid(value || "")) && compactGuid(value) !== "00000000000000000000000000000000"; }
+function sameFarmSnapshot(left, right) {
+  if (validFarmId(left.farmId) && validFarmId(right.farmId)) return compactGuid(left.farmId) === compactGuid(right.farmId);
+  const same = (a, b) => String(a).toLocaleLowerCase("es") === String(b).toLocaleLowerCase("es");
+  return same(left.farm, right.farm) ||
+    (validFarmId(right.farmId) && (right.previousFarmNames || []).some(name => same(name, left.farm))) ||
+    (validFarmId(left.farmId) && (left.previousFarmNames || []).some(name => same(name, right.farm)));
 }
 
 function savedConfiguration() {
@@ -159,6 +169,7 @@ function saveConfiguration(token) {
 function showPairing(message = "") {
   el("pairingView").classList.remove("hidden"); el("dashboardView").classList.add("hidden"); el("bottomNav").classList.add("hidden");
   el("pairingError").textContent = message;
+  window.SMGField?.refresh();
 }
 
 function showDashboard() {
@@ -293,7 +304,7 @@ async function importOwnerUpdate(file) {
     const snapshots = [];
     for (const envelope of envelopes) {
       const snapshot = await decryptEnvelope(envelope, state.pairing);
-      const current = state.snapshots.find(row => row.farm.toLocaleLowerCase("es") === snapshot.farm.toLocaleLowerCase("es"));
+      const current = state.snapshots.find(row => sameFarmSnapshot(row, snapshot));
       if (!current || Number(current.sequence || 0) < Number(snapshot.sequence || 0)) snapshots.push(snapshot);
     }
     if (!snapshots.length) throw new Error("Esta actualización ya fue importada o es anterior a la guardada.");
@@ -315,7 +326,7 @@ function showUpdatePreview(snapshot, total = 1) {
 
 function confirmOwnerUpdate() {
   const updates = state.pendingSnapshots.length ? state.pendingSnapshots : (state.pendingSnapshot ? [state.pendingSnapshot] : []); if (!updates.length) return;
-  for (const snapshot of updates) { state.snapshots = state.snapshots.filter(row => row.farm.toLocaleLowerCase("es") !== snapshot.farm.toLocaleLowerCase("es")); state.snapshots.push(snapshot); }
+  for (const snapshot of updates) { state.snapshots = state.snapshots.filter(row => !sameFarmSnapshot(row, snapshot)); state.snapshots.push(snapshot); }
   state.activeFarm = updates[0].farm; state.activeModule = ""; state.pendingSnapshot = null; state.pendingSnapshots = [];
   saveConfiguration(state.pairingToken); el("updatePreview").classList.add("hidden"); showDashboard(); render(); setOffline(false); showToast("La información de esta propiedad está al día");
 }
@@ -328,7 +339,7 @@ function renderEmptyDashboard() {
   el("kpiGrid").innerHTML = [kpi("Animales activos", "—", "esperando actualización", "coral"), kpi("Nacimientos", "—", "esperando actualización", "good"), kpi("Ventas netas", "—", "esperando actualización"), kpi("Resultado operativo", "—", "esperando actualización", "navy")].join("");
   el("alertsList").innerHTML = `<div class="panel empty">Toca + para importar el archivo recibido por WhatsApp.</div>`; el("alertCount").textContent = "0 avisos";
   el("chart").innerHTML = ""; el("managementGrid").innerHTML = ""; el("managementKpis").innerHTML = ""; el("paddockList").innerHTML = `<div class="panel empty">Sin información todavía</div>`; el("categoryList").innerHTML = `<div class="empty">Sin información todavía</div>`; el("workList").innerHTML = `<div class="panel empty">Sin información todavía</div>`;
-  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${state.pairing.farms.join(", ")} · ${isVeterinarian() ? "registro de campo habilitado" : "consulta únicamente"}`;
+  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${state.pairing.farms.join(", ")} · consulta únicamente`;
   window.SMGField?.refresh();
 }
 
@@ -353,7 +364,7 @@ function render() {
   const males = view.monthlyTrend.reduce((sum, row) => sum + row.maleBirths, 0);
   const propertyIdentity = aggregate ? `${state.snapshots.length} propiedades habilitadas` : [snapshot.ownerName, snapshot.municipality].filter(Boolean).join(" · ");
   el("farmTitle").textContent = aggregate ? "Todas las propiedades" : `${snapshot.farm}${moduleView ? ` · ${moduleView.module}` : ""}`;
-  el("updatedText").textContent = `${propertyIdentity ? `${propertyIdentity} · ` : ""}Actualizado ${latestText(snapshot.dataUpdatedAtUtc)}`;
+  el("updatedText").textContent = `${propertyIdentity ? `${propertyIdentity} · ` : ""}${aggregate ? "Actualización más reciente (varía por propiedad)" : "Última actualización desde PC"}: ${latestText(snapshot.dataUpdatedAtUtc)}`;
   el("heroEyebrow").textContent = aggregate || isVeterinarian() ? "Panel del veterinario" : "Panel del propietario";
   el("heroTitle").textContent = aggregate ? "Toda tu gestión, en un vistazo" : moduleView ? `${moduleView.module} en ${snapshot.farm}` : "Tu propiedad, clara de un vistazo";
   el("heroMessage").textContent = aggregate ? "Vista consolidada de las propiedades que administra el veterinario." : moduleView ? `Indicadores exclusivos del módulo ${moduleView.module}; los costos generales permanecen en el resumen de la propiedad.` : "Información productiva y económica consolidada para acompañar cada decisión.";
@@ -365,7 +376,7 @@ function render() {
     moduleView?.biotechnology ? kpi("Embriones viables", fmt.format(moduleView.biotechnology.viableEmbryos), `${fmt1.format(moduleView.biotechnology.viabilityRate * 100)} % de viabilidad`, "navy", "positive") : moduleView ? kpi("Trabajos recientes", fmt.format(view.recentWork.length), `en ${moduleView.module}`, "navy") : kpi("Resultado operativo", money(summary.operatingResultYearBs), `Costo: ${money2(summary.costPerProducedKgBs)}/kg`, "navy", summary.operatingResultYearBs < 0 ? "negative" : "positive")
   ].join("");
   renderAlerts(view.alerts); renderChart(view, Boolean(moduleView)); renderManagement(summary, Boolean(moduleView), moduleView?.biotechnology); renderPaddocks(view.paddocks); renderCategories(view.categories); renderWork(view.recentWork);
-  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${isVeterinarian() ? `Veterinario · ${state.pairing.farms.length} propiedades · registro de campo` : `${state.pairing.farms.join(", ")} · consulta únicamente`}`;
+  el("pairingInfo").textContent = `${state.pairing.ownerName} · ${isVeterinarian() ? `Veterinario · ${state.pairing.farms.length} propiedades · consulta únicamente` : `${state.pairing.farms.join(", ")} · consulta únicamente`}`;
   saveConfiguration(state.pairingToken);
   window.SMGField?.refresh();
 }
@@ -503,7 +514,18 @@ function bindEvents() {
   el("farmSelect").addEventListener("change", event => { state.activeFarm = event.target.value; state.activeModule = ""; render(); });
   el("moduleSelect").addEventListener("change", event => { state.activeModule = event.target.value; if (state.activeModule && (state.metric === "costs" || state.metric === "rain")) state.metric = "births"; render(); });
   el("metricTabs").addEventListener("click", event => { const button = event.target.closest("button[data-metric]"); if (!button || button.disabled) return; state.metric = button.dataset.metric; render(); });
-  el("disconnectButton").addEventListener("click", async () => { if (!confirm("¿Desvincular este celular y borrar los dashboards y borradores guardados? Para volver a usarlo necesitarás un código nuevo del veterinario.")) return; localStorage.removeItem(PRODUCT.storageKey); window.SMGField?.clearAll(); await clearDeviceIdentity(); state.pairing = null; state.snapshots = []; state.pairingToken = ""; el("pairingTokenInput").value = ""; showPairing("El celular quedó desvinculado. Solicita un código nuevo del veterinario."); });
+  el("disconnectButton").addEventListener("click", async () => {
+    if (!window.SMGField || window.SMGField.hasPending()) {
+      window.alert("Antes de desvincular, revisa los trabajos anteriores. Guarda una copia y solicita revisión; no se borró información.");
+      return;
+    }
+    if (!confirm("¿Desvincular este celular y borrar la clave y los dashboards de consulta? Necesitarás un código nuevo para volver a usarlo.")) return;
+    await clearDeviceIdentity();
+    localStorage.removeItem(PRODUCT.storageKey);
+    state.pairing = null; state.snapshots = []; state.pairingToken = "";
+    el("pairingTokenInput").value = "";
+    showPairing("El celular quedó desvinculado. Solicita un código nuevo del veterinario.");
+  });
   el("installButton").addEventListener("click", async () => { if (!state.installPrompt) return; state.installPrompt.prompt(); await state.installPrompt.userChoice; state.installPrompt = null; el("installButton").classList.add("hidden"); });
   window.addEventListener("online", () => setOffline(false));
   window.addEventListener("offline", () => setOffline(true));
@@ -515,11 +537,11 @@ function bindEvents() {
 
 async function ensureCurrentServiceWorker() {
   if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) return;
-  const build = "sm-owner-shell-v18-opening-6s";
+  const build = "sm-owner-shell-v21-consulta";
   const previousBuild = localStorage.getItem("sm-owner-shell-version");
   const hadController = Boolean(navigator.serviceWorker.controller);
   try {
-    const registration = await navigator.serviceWorker.register("service-worker.js?v=18", { updateViaCache: "none" });
+    const registration = await navigator.serviceWorker.register("service-worker.js?v=21", { updateViaCache: "none" });
     await registration.update().catch(() => {});
     const worker = registration.installing || registration.waiting;
     if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
