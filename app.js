@@ -20,7 +20,7 @@ const OPENING_MESSAGES = Object.freeze([
   ["Fiel es el que prometió.", "Hebreos 10:23"]
 ]);
 
-const state = { pairingToken: "", pairing: null, snapshots: [], activeFarm: "", activeModule: "", metric: "births", installPrompt: null, pendingSnapshot: null, pendingSnapshots: [] };
+const state = { pairingToken: "", pairing: null, snapshots: [], recoverySnapshots: [], storedRaw: null, activeFarm: "", activeModule: "", metric: "births", installPrompt: null, pendingSnapshot: null, pendingSnapshots: [], importRevision: 0 };
 const el = id => document.getElementById(id);
 const fmt = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 0 });
 const fmt1 = new Intl.NumberFormat("es-BO", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -129,7 +129,8 @@ async function parsePairingToken(token, enforceExpiry = true) {
 
 async function decryptEnvelope(envelope, pairing) {
   if (envelope.contractVersion !== PRODUCT.syncContract || compactGuid(envelope.pairingId) !== compactGuid(pairing.pairingId))
-    throw new Error("La actualización pertenece a otra clave de propietario.");
+    throw new Error("Este archivo fue preparado para otra vinculación. En la PC selecciona el celular que tienes autorizado; no borres los datos de esta app.");
+  if (!Number.isSafeInteger(envelope.sequence) || envelope.sequence <= 0) throw new Error("La secuencia de la actualización no es válida.");
   if (new Date(envelope.expiresAtUtc).getTime() < Date.now()) throw new Error("La actualización disponible venció.");
   if (new Date(envelope.createdAtUtc).getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error("La fecha de la actualización no es válida.");
   const associated = `${PRODUCT.syncContract}|${compactGuid(envelope.pairingId)}|${envelope.sequence}|${envelope.farm}|${dotnetRoundtrip(envelope.createdAtUtc)}|${dotnetRoundtrip(envelope.expiresAtUtc)}`;
@@ -142,7 +143,7 @@ async function decryptEnvelope(envelope, pairing) {
     const allowed = pairing.farms.map(farm => farm.toLocaleLowerCase("es"));
     const authenticatedNames = [snapshot.farm, ...(validFarmId(snapshot.farmId) && Array.isArray(snapshot.previousFarmNames) ? snapshot.previousFarmNames : [])];
     if (!authenticatedNames.some(name => allowed.includes(String(name).toLocaleLowerCase("es")))) throw new Error();
-    return { ...snapshot, sequence: envelope.sequence };
+    return { ...snapshot, sequence: envelope.sequence, sourcePairingId: compactGuid(envelope.pairingId) };
   } catch {
     throw new Error("La actualización fue alterada o no corresponde a este celular.");
   }
@@ -158,12 +159,77 @@ function sameFarmSnapshot(left, right) {
 }
 
 function savedConfiguration() {
-  try { return JSON.parse(localStorage.getItem(PRODUCT.storageKey) || "null"); }
-  catch { return null; }
+  state.storedRaw = localStorage.getItem(PRODUCT.storageKey);
+  return JSON.parse(state.storedRaw || "null");
 }
 
-function saveConfiguration(token) {
-  localStorage.setItem(PRODUCT.storageKey, JSON.stringify({ token, snapshots: state.snapshots, activeFarm: state.activeFarm, activeModule: state.activeModule }));
+function saveConfiguration(token, changes = {}) {
+  // One atomic storage write precedes any confirmed in-memory change.
+  // A stale second tab must never overwrite a newer import or pairing.
+  if (localStorage.getItem(PRODUCT.storageKey) !== state.storedRaw) throw new Error("Otra ventana cambió la información. Cierra y vuelve a abrir esta app antes de importar; no se sobrescribieron datos.");
+  const next = { ...state, ...changes };
+  const raw = JSON.stringify({ version: 2, token, snapshots: next.snapshots, recoverySnapshots: next.recoverySnapshots, activeFarm: next.activeFarm, activeModule: next.activeModule });
+  try { localStorage.setItem(PRODUCT.storageKey, raw); }
+  catch { throw new Error("No se pudo guardar en el celular. La información anterior sigue intacta; libera espacio fuera de SM Ganadero y vuelve a confirmar. No borres los datos de la app."); }
+  Object.assign(state, changes, { storedRaw: raw });
+}
+
+function belongsToPairing(snapshot, pairing = state.pairing) {
+  return Boolean(snapshot.sourcePairingId && pairing && compactGuid(snapshot.sourcePairingId) === compactGuid(pairing.pairingId));
+}
+
+function farmKey(snapshot) {
+  return validFarmId(snapshot.farmId) ? `id:${compactGuid(snapshot.farmId)}` : `name:${String(snapshot.farm).toLocaleLowerCase("es")}`;
+}
+
+function keepRecovery(rows) {
+  const copies = [...state.recoverySnapshots], seen = new Set(copies.map(row => JSON.stringify(row)));
+  for (const row of rows) {
+    const copy = row.recoveryPairingId ? row : { ...row, recoveryPairingId: compactGuid(state.pairing?.pairingId || "") };
+    const key = JSON.stringify(copy); if (!seen.has(key)) { copies.push(copy); seen.add(key); }
+  }
+  return copies;
+}
+
+function isNewerUpdate(snapshot) {
+  if (!belongsToPairing(snapshot)) throw new Error("La vinculación cambió. Vuelve a abrir el archivo para el celular actual.");
+  const confirmed = state.snapshots.filter(row => belongsToPairing(row) && sameFarmSnapshot(row, snapshot));
+  if (confirmed.length) return confirmed.every(row => snapshot.sequence > Number(row.sequence || 0));
+  // v21 did not retain the originating pairing. Do not assign its sequence to
+  // the new key. Recover only from an authenticated, strictly newer PC export.
+  const legacy = [...state.snapshots, ...state.recoverySnapshots.filter(row => compactGuid(row.recoveryPairingId || "") === compactGuid(state.pairing.pairingId))].filter(row => !row.sourcePairingId &&
+    (sameFarmSnapshot(row, snapshot) || String(row.farm).toLocaleLowerCase("es") === String(snapshot.farm).toLocaleLowerCase("es")));
+  if (legacy.length) {
+    const dates = legacy.map(row => Date.parse(row.generatedAtUtc));
+    const incoming = Date.parse(snapshot.generatedAtUtc);
+    if (!Number.isFinite(incoming) || dates.some(date => !Number.isFinite(date))) throw new Error("La consulta anterior no tiene una fecha verificable. Conserva su copia y prepara una nueva vinculación desde la PC.");
+    if (dates.some(date => incoming <= date)) throw new Error("Este archivo no es posterior a la consulta anterior. Crea una actualización nueva en la PC; no se reemplazaron datos.");
+  }
+  return true;
+}
+
+function clearPendingUpdate() {
+  state.importRevision++; state.pendingSnapshot = null; state.pendingSnapshots = [];
+  el("updatePreview").classList.add("hidden");
+}
+
+function renderRecoveryNotice() {
+  const legacy = state.snapshots.some(row => !row.sourcePairingId);
+  const section = el("snapshotRecoverySection");
+  section?.classList.toggle("hidden", !legacy && !state.recoverySnapshots.length);
+  if (el("snapshotRecoveryStatus")) el("snapshotRecoveryStatus").textContent = legacy
+    ? "Consulta de una versión anterior: su vinculación no quedó registrada. Importa una actualización nueva de la PC para verificarla. La copia anterior se conservará sin mezclarla con los datos nuevos."
+    : "Se conservaron consultas anteriores separadas de la vinculación actual. No se suman al tablero ni se incorporan a la PC.";
+}
+
+function downloadSnapshotRecovery() {
+  const snapshots = keepRecovery(state.snapshots.filter(row => !row.sourcePairingId));
+  if (!snapshots.length) return;
+  if (!window.confirm("Esta copia contiene consultas ganaderas anteriores, sin claves. Guárdala en un lugar privado; no se importa como actualización. ¿Crear copia?")) return;
+  const blob = new Blob([JSON.stringify({ contractVersion: "sm-consultation-recovery.v1", createdAtUtc: new Date().toISOString(), snapshots }, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob), link = document.createElement("a");
+  link.href = url; link.download = "SM-consultas-anteriores.json"; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function showPairing(message = "") {
@@ -274,19 +340,26 @@ async function receiveSharedFileFromUrl() {
 }
 
 async function pairDevice() {
+  clearPendingUpdate();
+  const revision = state.importRevision;
   setBusy(true); el("pairingError").textContent = "";
   try {
     const token = el("pairingTokenInput").value.trim();
     const pairing = await parsePairingToken(token);
-    state.pairingToken = token; state.pairing = pairing; state.activeFarm = pairing.farms[0] || "";
     await getOrCreateDeviceIdentity();
-    saveConfiguration(token);
-    showDashboard(); renderEmptyDashboard(); showToast(`Todo listo. Importa la primera actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`);
+    if (revision !== state.importRevision) return;
+    const samePairing = state.pairing && compactGuid(state.pairing.pairingId) === compactGuid(pairing.pairingId) && state.pairing.secret === pairing.secret;
+    const snapshots = samePairing ? state.snapshots : [];
+    saveConfiguration(token, { pairingToken: token, pairing, snapshots, recoverySnapshots: samePairing ? state.recoverySnapshots : keepRecovery(state.snapshots), activeFarm: samePairing ? state.activeFarm : pairing.farms[0] || "", activeModule: samePairing ? state.activeModule : "" });
+    showDashboard(); if (snapshots.length) render(); else renderEmptyDashboard();
+    showToast(snapshots.length ? "La vinculación actual se conserva" : `Todo listo. Importa la primera actualización ${isVeterinarian() ? ".smvet" : ".smprop"}`);
   } catch (error) { showPairing(error.message || "No se pudo vincular este celular."); }
   finally { setBusy(false); }
 }
 
 async function importOwnerUpdate(file) {
+  clearPendingUpdate();
+  const revision = state.importRevision, pairing = state.pairing;
   try {
     if (!state.pairing) throw new Error("Primero prepara este celular con el archivo .smpair.");
     const lowerName = file?.name?.toLocaleLowerCase("es") || "";
@@ -303,35 +376,51 @@ async function importOwnerUpdate(file) {
       throw new Error("El archivo no es una actualización válida de SM Ganadero o está incompleto.");
     const snapshots = [];
     for (const envelope of envelopes) {
-      const snapshot = await decryptEnvelope(envelope, state.pairing);
-      const current = state.snapshots.find(row => sameFarmSnapshot(row, snapshot));
-      if (!current || Number(current.sequence || 0) < Number(snapshot.sequence || 0)) snapshots.push(snapshot);
+      const snapshot = await decryptEnvelope(envelope, pairing);
+      if (revision !== state.importRevision || pairing !== state.pairing) return;
+      if (isNewerUpdate(snapshot)) {
+        const prior = snapshots.findIndex(row => sameFarmSnapshot(row, snapshot));
+        if (prior < 0) snapshots.push(snapshot);
+        else if (snapshots[prior].sequence < snapshot.sequence) snapshots[prior] = snapshot;
+      }
     }
     if (!snapshots.length) throw new Error("Esta actualización ya fue importada o es anterior a la guardada.");
     state.pendingSnapshots = snapshots; state.pendingSnapshot = snapshots[0];
     showUpdatePreview(snapshots[0], snapshots.length);
   } catch (error) {
+    if (revision !== state.importRevision) return;
     const message = error?.message || "No se pudo abrir la actualización.";
     window.alert(message);
     showToast("No se importó el documento. Revisa el mensaje mostrado.");
-  } finally { el("updateFileInput").value = ""; }
+  } finally { if (revision === state.importRevision) el("updateFileInput").value = ""; }
 }
 
 function showUpdatePreview(snapshot, total = 1) {
   const summary = snapshot.summary || {};
   el("previewContent").innerHTML = `<div class="preview-farm"><strong>${total > 1 ? `${total} propiedades del veterinario` : h(snapshot.farm)}</strong><span>${total > 1 ? `Incluye: ${state.pendingSnapshots.map(item => h(item.farm)).join(", ")}` : `${h(snapshot.ownerName || "Propietario")} · ${h(snapshot.municipality || "")}`}</span></div><div class="preview-grid"><div><small>Preparada</small><b>${h(latestText(snapshot.generatedAtUtc))}</b></div><div><small>Primera propiedad</small><b>${h(snapshot.farm)}</b></div><div><small>Animales</small><b>${fmt.format(summary.activeAnimals || 0)}</b></div><div><small>Acceso</small><b>${h(state.pairing?.accessMode || "Propietario")}</b></div></div><p>Al confirmar se actualizarán únicamente las propiedades incluidas en este archivo.</p>`;
   el("previewError").textContent = "";
+  el("previewContent").innerHTML += state.pendingSnapshots.map(row => `<p><strong>${h(row.farm)}</strong>: ${fmt.format(row.summary.activeAnimals)} animales · ${h(latestText(row.generatedAtUtc))}</p>`).join("") +
+    (state.snapshots.some(row => !belongsToPairing(row)) ? "<p>Las consultas de la vinculación o versión anterior se conservarán en una copia separada. Solo se mostrarán las propiedades verificadas de este archivo.</p>" : "");
   el("updatePreview").classList.remove("hidden");
 }
 
 function confirmOwnerUpdate() {
-  const updates = state.pendingSnapshots.length ? state.pendingSnapshots : (state.pendingSnapshot ? [state.pendingSnapshot] : []); if (!updates.length) return;
-  for (const snapshot of updates) { state.snapshots = state.snapshots.filter(row => !sameFarmSnapshot(row, snapshot)); state.snapshots.push(snapshot); }
-  state.activeFarm = updates[0].farm; state.activeModule = ""; state.pendingSnapshot = null; state.pendingSnapshots = [];
-  saveConfiguration(state.pairingToken); el("updatePreview").classList.add("hidden"); showDashboard(); render(); setOffline(false); showToast("La información de esta propiedad está al día");
+  const updates = state.pendingSnapshots; if (!updates.length) return;
+  try {
+    if (updates.some(snapshot => !isNewerUpdate(snapshot))) throw new Error("Esta actualización ya fue importada o es anterior a la guardada.");
+    const previous = activeSnapshot();
+    const legacy = state.snapshots.filter(row => !belongsToPairing(row));
+    let snapshots = state.snapshots.filter(row => belongsToPairing(row));
+    for (const snapshot of updates) { snapshots = snapshots.filter(row => !sameFarmSnapshot(row, snapshot)); snapshots.push(snapshot); }
+    const selected = updates.find(row => previous && (sameFarmSnapshot(row, previous) || row.farm === previous.farm)) || updates[0];
+    saveConfiguration(state.pairingToken, { snapshots, recoverySnapshots: keepRecovery(legacy), activeFarm: farmKey(selected), activeModule: "" });
+  } catch (error) { el("previewError").textContent = error.message || "No se pudo guardar la actualización."; return; }
+  clearPendingUpdate(); showDashboard(); render(); setOffline(!navigator.onLine);
+  showToast("Actualización guardada en este celular");
 }
 
 function renderEmptyDashboard() {
+  renderRecoveryNotice();
   el("farmTitle").textContent = state.activeFarm || "Propiedad";
   el("updatedText").textContent = "Celular preparado · sin datos todavía";
   el("heroMessage").textContent = "Todo listo. Importa el archivo enviado por el veterinario para ver la información de tu propiedad.";
@@ -343,17 +432,22 @@ function renderEmptyDashboard() {
   window.SMGField?.refresh();
 }
 
-function activeSnapshot() { return state.snapshots.find(snapshot => snapshot.farm === state.activeFarm) || state.snapshots[0]; }
+function activeSnapshot() {
+  const exact = state.snapshots.find(snapshot => farmKey(snapshot) === state.activeFarm);
+  if (exact) return exact;
+  const legacyNames = state.snapshots.filter(snapshot => snapshot.farm === state.activeFarm);
+  return legacyNames.length === 1 ? legacyNames[0] : state.snapshots[0];
+}
 function isVeterinarian() { return String(state.pairing?.accessMode || "").toLocaleLowerCase("es").includes("veterinario"); }
 function pct(value) { return Math.max(0, Math.min(100, Number(value || 0))); }
 function latestText(value) { return new Date(value).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" }); }
 
 function render() {
   if (!state.snapshots.length) return;
-  renderFarmSwitcher();
   const aggregate = state.activeFarm === "__all__" && isVeterinarian();
   const snapshot = aggregate ? buildVeterinarianOverview() : activeSnapshot(); if (!snapshot) return;
-  if (!aggregate) state.activeFarm = snapshot.farm;
+  if (!aggregate) state.activeFarm = farmKey(snapshot);
+  renderFarmSwitcher(); renderRecoveryNotice();
   renderModuleSwitcher(snapshot, aggregate);
   const moduleView = !aggregate && state.activeModule ? (snapshot.moduleViews || []).find(row => row.module === state.activeModule) : null;
   if (state.activeModule && !moduleView) state.activeModule = "";
@@ -365,6 +459,7 @@ function render() {
   const propertyIdentity = aggregate ? `${state.snapshots.length} propiedades habilitadas` : [snapshot.ownerName, snapshot.municipality].filter(Boolean).join(" · ");
   el("farmTitle").textContent = aggregate ? "Todas las propiedades" : `${snapshot.farm}${moduleView ? ` · ${moduleView.module}` : ""}`;
   el("updatedText").textContent = `${propertyIdentity ? `${propertyIdentity} · ` : ""}${aggregate ? "Actualización más reciente (varía por propiedad)" : "Última actualización desde PC"}: ${latestText(snapshot.dataUpdatedAtUtc)}`;
+  if (state.snapshots.some(row => !row.sourcePairingId)) el("updatedText").textContent += " · Consulta anterior por verificar";
   el("heroEyebrow").textContent = aggregate || isVeterinarian() ? "Panel del veterinario" : "Panel del propietario";
   el("heroTitle").textContent = aggregate ? "Toda tu gestión, en un vistazo" : moduleView ? `${moduleView.module} en ${snapshot.farm}` : "Tu propiedad, clara de un vistazo";
   el("heroMessage").textContent = aggregate ? "Vista consolidada de las propiedades que administra el veterinario." : moduleView ? `Indicadores exclusivos del módulo ${moduleView.module}; los costos generales permanecen en el resumen de la propiedad.` : "Información productiva y económica consolidada para acompañar cada decisión.";
@@ -377,7 +472,6 @@ function render() {
   ].join("");
   renderAlerts(view.alerts); renderChart(view, Boolean(moduleView)); renderManagement(summary, Boolean(moduleView), moduleView?.biotechnology); renderPaddocks(view.paddocks); renderCategories(view.categories); renderWork(view.recentWork);
   el("pairingInfo").textContent = `${state.pairing.ownerName} · ${isVeterinarian() ? `Veterinario · ${state.pairing.farms.length} propiedades · consulta únicamente` : `${state.pairing.farms.join(", ")} · consulta únicamente`}`;
-  saveConfiguration(state.pairingToken);
   window.SMGField?.refresh();
 }
 
@@ -389,7 +483,11 @@ function renderFarmSwitcher() {
   const switcher = el("propertySwitcher"), select = el("farmSelect");
   switcher.classList.toggle("hidden", state.snapshots.length < 2 && !isVeterinarian());
   const all = isVeterinarian() && state.snapshots.length > 1 ? `<option value="__all__" ${state.activeFarm === "__all__" ? "selected" : ""}>Todas las propiedades</option>` : "";
-  select.innerHTML = all + state.snapshots.map(row => `<option value="${h(row.farm)}" ${row.farm === state.activeFarm ? "selected" : ""}>${h(row.farm)}</option>`).join("");
+  select.innerHTML = all + state.snapshots.map(row => {
+    const homonym = state.snapshots.filter(other => other.farm === row.farm).length > 1;
+    const label = homonym ? `${row.farm} · ${String(row.farmId || "").slice(0, 8)}` : row.farm;
+    return `<option value="${h(farmKey(row))}" ${farmKey(row) === state.activeFarm ? "selected" : ""}>${h(label)}</option>`;
+  }).join("");
 }
 
 function renderModuleSwitcher(snapshot, aggregate) {
@@ -490,10 +588,13 @@ function renderWork(rows) {
 function setOffline(value) { el("offlineBanner").classList.toggle("hidden", !value || !state.snapshots.length); }
 
 async function restore() {
-  const saved = savedConfiguration();
-  if (!saved?.token) { showPairing(); return; }
   try {
+    const saved = savedConfiguration();
+    if (!saved?.token) { showPairing(); return; }
     state.pairingToken = saved.token; state.pairing = await parsePairingToken(saved.token, false); state.snapshots = Array.isArray(saved.snapshots) ? saved.snapshots : []; state.activeFarm = saved.activeFarm || state.snapshots[0]?.farm || state.pairing.farms[0] || ""; state.activeModule = saved.activeModule || "";
+    state.recoverySnapshots = Array.isArray(saved.recoverySnapshots) ? saved.recoverySnapshots : [];
+    state.recoverySnapshots = keepRecovery(state.snapshots.filter(row => row.sourcePairingId && !belongsToPairing(row)));
+    state.snapshots = state.snapshots.filter(row => !row.sourcePairingId || belongsToPairing(row));
     el("pairingTokenInput").value = saved.token;
     showDashboard(); if (state.snapshots.length) render(); else renderEmptyDashboard();
   } catch (error) {
@@ -509,20 +610,23 @@ function bindEvents() {
   el("syncButton").addEventListener("click", () => el("updateFileInput").click());
   el("importButton").addEventListener("click", () => el("updateFileInput").click());
   el("updateFileInput").addEventListener("change", event => importOwnerUpdate(event.target.files[0]));
-  el("cancelUpdateButton").addEventListener("click", () => { state.pendingSnapshot = null; el("updatePreview").classList.add("hidden"); });
+  el("cancelUpdateButton").addEventListener("click", clearPendingUpdate);
   el("confirmUpdateButton").addEventListener("click", confirmOwnerUpdate);
-  el("farmSelect").addEventListener("change", event => { state.activeFarm = event.target.value; state.activeModule = ""; render(); });
-  el("moduleSelect").addEventListener("change", event => { state.activeModule = event.target.value; if (state.activeModule && (state.metric === "costs" || state.metric === "rain")) state.metric = "births"; render(); });
+  el("snapshotRecoveryDownload")?.addEventListener("click", downloadSnapshotRecovery);
+  el("farmSelect").addEventListener("change", event => { try { saveConfiguration(state.pairingToken, { activeFarm: event.target.value, activeModule: "" }); } catch (error) { showToast(error.message); } render(); });
+  el("moduleSelect").addEventListener("change", event => { try { saveConfiguration(state.pairingToken, { activeModule: event.target.value }); } catch (error) { showToast(error.message); } if (state.activeModule && (state.metric === "costs" || state.metric === "rain")) state.metric = "births"; render(); });
   el("metricTabs").addEventListener("click", event => { const button = event.target.closest("button[data-metric]"); if (!button || button.disabled) return; state.metric = button.dataset.metric; render(); });
   el("disconnectButton").addEventListener("click", async () => {
     if (!window.SMGField || window.SMGField.hasPending()) {
       window.alert("Antes de desvincular, revisa los trabajos anteriores. Guarda una copia y solicita revisión; no se borró información.");
       return;
     }
-    if (!confirm("¿Desvincular este celular y borrar la clave y los dashboards de consulta? Necesitarás un código nuevo para volver a usarlo.")) return;
+    if (!confirm("¿Desvincular este celular y borrar la clave y los dashboards de consulta, incluidas las consultas anteriores conservadas? Si necesitas esas consultas, cancela y guarda su copia primero. Necesitarás un código nuevo para volver a usarlo.")) return;
+    if (localStorage.getItem(PRODUCT.storageKey) !== state.storedRaw) { window.alert("Otra ventana cambió la vinculación. Cierra y vuelve a abrir esta app."); return; }
     await clearDeviceIdentity();
+    if (localStorage.getItem(PRODUCT.storageKey) !== state.storedRaw) { window.alert("La vinculación cambió en otra ventana. No se borraron sus consultas."); return; }
     localStorage.removeItem(PRODUCT.storageKey);
-    state.pairing = null; state.snapshots = []; state.pairingToken = "";
+    clearPendingUpdate(); state.storedRaw = null; state.pairing = null; state.snapshots = []; state.recoverySnapshots = []; state.pairingToken = "";
     el("pairingTokenInput").value = "";
     showPairing("El celular quedó desvinculado. Solicita un código nuevo del veterinario.");
   });
@@ -537,11 +641,11 @@ function bindEvents() {
 
 async function ensureCurrentServiceWorker() {
   if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) return;
-  const build = "sm-owner-shell-v21-consulta";
+  const build = "sm-owner-shell-v22-vinculacion";
   const previousBuild = localStorage.getItem("sm-owner-shell-version");
   const hadController = Boolean(navigator.serviceWorker.controller);
   try {
-    const registration = await navigator.serviceWorker.register("service-worker.js?v=21", { updateViaCache: "none" });
+    const registration = await navigator.serviceWorker.register("service-worker.js?v=22", { updateViaCache: "none" });
     await registration.update().catch(() => {});
     const worker = registration.installing || registration.waiting;
     if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });

@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="SM Ganadero">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=19">
+  <link rel="stylesheet" href="app.css?v=22">
   <link rel="stylesheet" href="field.css?v=2">
   <title>SM Ganadero móvil</title>
 </head>
@@ -66,12 +66,13 @@
     <section id="workSection" class="content-section"><div class="section-head"><div><h2>Trabajos recientes</h2><p>Seguimiento de las jornadas realizadas</p></div></div><div id="workList" class="timeline"></div></section>
     <section id="legacyWorkSection" class="content-section hidden"><div class="panel"><h3>Trabajos anteriores conservados</h3><p id="legacyWorkStatus"></p><button id="legacyWorkDownload" class="secondary-action" type="button">Guardar copia para revisión</button></div></section>
     <section id="settingsSection" class="content-section settings"><div class="section-head"><div><h2>Este celular</h2><p>Solo consulta · los registros se realizan en la PC</p></div></div><div class="panel"><p id="pairingInfo"></p><button id="importButton" class="primary-action compact-action" type="button">Importar actualización .smprop / .smvet</button><button id="installButton" class="secondary-action hidden" type="button">Instalar aplicación</button><div id="iosInstallHelp" class="ios-help hidden"><strong>Instalar en iPhone</strong><span>En Safari toca Compartir y luego “Añadir a pantalla de inicio”.</span></div><button id="disconnectButton" class="danger-action" type="button">Desvincular celular</button><small>Al desvincular se eliminan de este dispositivo la clave y los dashboards guardados.</small></div></section>
+    <section id="snapshotRecoverySection" class="content-section hidden"><div class="panel"><h3>Consultas anteriores conservadas</h3><p id="snapshotRecoveryStatus"></p><button id="snapshotRecoveryDownload" class="secondary-action" type="button">Guardar copia de consultas anteriores</button></div></section>
     <footer id="mobileFooter">SM Ganadero · Una solución de Calivet Bolivia · Información protegida</footer>
   </main>
   <nav id="bottomNav" class="bottom-nav hidden"><a href="#summarySection"><b>R</b>Resumen</a><a href="#managementSection"><b>G</b>Gestión</a><a href="#fieldSection"><b>C</b>Campo</a><a href="#settingsSection"><b>⋯</b>Más</a></nav>
   <div id="toast" class="toast hidden" role="status"></div>
   <div id="updatePreview" class="preview-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle"><section class="preview-card"><span class="eyebrow">Actualización recibida</span><h2 id="previewTitle">Revisar antes de guardar</h2><div id="previewContent" class="preview-content"></div><p id="previewError" class="form-error"></p><div class="preview-actions"><button id="cancelUpdateButton" class="secondary-action" type="button">Cancelar</button><button id="confirmUpdateButton" class="primary-action" type="button">Confirmar actualización</button></div></section></div>
-  <script src="app.js?v=21" defer></script>
+  <script src="app.js?v=22" defer></script>
   <script src="field.js?v=21" defer></script>
 </body>
 </html>

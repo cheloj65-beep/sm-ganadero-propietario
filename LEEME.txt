@@ -1,5 +1,15 @@
 SM GANADERO - CONSULTA EN ANDROID Y IPHONE
-Versión móvil de consulta v21 - decisión aprobada el 12/09/2026.
+Versión móvil de consulta v22 - corrección de vinculaciones del 12/09/2026.
+
+ACTUALIZACIÓN V22
+- Distingue las propiedades por su ID y los archivos por su vinculación.
+- Cambiar de vinculación ya no mezcla los tableros ni las secuencias anteriores.
+- Las consultas anteriores quedan separadas y se puede guardar una copia privada sin claves.
+- Para verificar consultas de v21, importa un archivo creado en la PC después del último que ya tenías. No borres almacenamiento ni vuelvas a registrar animales.
+- Si el archivo pertenece a otra vinculación, la PC debe prepararlo para el celular correcto.
+- Una importación solo se confirma cuando el almacenamiento la guarda; si falla, permite reintentar.
+- Cierra otras ventanas de SM Ganadero al importar. No se sobrescriben cambios de otra ventana.
+- Guarda la copia de consultas anteriores antes de desvincular si deseas conservarlas.
 
 La computadora es el único lugar de registro ganadero.
 La integración con bastón y balanza permanece en la PC.
